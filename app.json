@@ -15,7 +15,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.elevient.telemedicine"
+      "bundleIdentifier": "com.elevient.telemedicine",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera for telehealth video visits.",
+        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone for telehealth video visits."
+      }
     },
     "android": {
       "package": "com.elevient.telemedicine",
@@ -23,7 +27,13 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.INTERNET"
+      ]
     },
     "web": {
       "bundler": "metro",

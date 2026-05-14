@@ -109,7 +109,7 @@ export default function AppointmentDetailScreen() {
           )}
         </Card>
 
-        {isTelehealth && appt.status === 'CONFIRMED' && appt.videoLink && (
+        {isTelehealth && appt.status === 'CONFIRMED' && (
           <Button
             label="Join telehealth visit"
             onPress={() =>

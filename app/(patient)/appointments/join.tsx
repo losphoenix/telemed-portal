@@ -1,29 +1,57 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  Alert,
+  TouchableOpacity,
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card } from '@/components';
 import { colors, spacing, typography, radius } from '@/theme';
 import { useGetAppointmentQuery } from '@/services/appointmentApi';
+import { useGetVideoSessionByAppointmentQuery } from '@/services/videoSessionApi';
+import {
+  LiveKitRoom,
+  VideoTrack,
+  useTracks,
+  useRoomContext,
+  isTrackReference,
+  registerGlobals,
+} from '@livekit/react-native';
+import { Track } from 'livekit-client';
+
+// Must be called once before any LiveKit usage
+registerGlobals();
 
 export default function JoinScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { data: appt, isLoading } = useGetAppointmentQuery(id ?? '');
-  const [joining, setJoining] = useState(false);
 
-  const handleJoin = async () => {
-    if (!appt?.videoLink) return;
-    setJoining(true);
-    try {
-      await WebBrowser.openBrowserAsync(appt.videoLink);
-    } catch {
-      Alert.alert('Error', 'Could not open the video link. Please try again.');
-    } finally {
-      setJoining(false);
+  const { data: appt, isLoading: apptLoading } = useGetAppointmentQuery(id ?? '');
+  const { data: session, isLoading: sessionLoading } = useGetVideoSessionByAppointmentQuery(
+    id ?? '',
+    { skip: !id },
+  );
+
+  const [inCall, setInCall] = useState(false);
+
+  const isLoading = apptLoading || sessionLoading;
+
+  const handleJoin = () => {
+    if (!session) {
+      Alert.alert('Not ready', 'No video session has been set up for this appointment yet.');
+      return;
     }
+    setInCall(true);
+  };
+
+  const handleLeave = () => {
+    setInCall(false);
+    router.back();
   };
 
   if (isLoading) {
@@ -34,6 +62,28 @@ export default function JoinScreen() {
     );
   }
 
+  // ── Active call ─────────────────────────────────────────────────────────────
+  if (inCall && session) {
+    return (
+      <LiveKitRoom
+        serverUrl={session.roomUrl}
+        token={session.patientToken}
+        connect
+        audio
+        video
+        style={{ flex: 1 }}
+        onDisconnected={handleLeave}
+        onError={(err) => {
+          Alert.alert('Connection error', err.message);
+          setInCall(false);
+        }}
+      >
+        <CallView onLeave={handleLeave} />
+      </LiveKitRoom>
+    );
+  }
+
+  // ── Pre-join preview ────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.inner}>
@@ -69,19 +119,20 @@ export default function JoinScreen() {
         </Card>
 
         <View style={styles.checklist}>
-          {['Camera and microphone allowed', 'Quiet, well-lit space', 'Stable internet connection'].map((item) => (
-            <View key={item} style={styles.checkItem}>
-              <Ionicons name="checkmark-circle" size={18} color={colors.success} />
-              <Text style={typography.bodySmall}>{item}</Text>
-            </View>
-          ))}
+          {['Camera and microphone allowed', 'Quiet, well-lit space', 'Stable internet connection'].map(
+            (item) => (
+              <View key={item} style={styles.checkItem}>
+                <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+                <Text style={typography.bodySmall}>{item}</Text>
+              </View>
+            ),
+          )}
         </View>
 
         <Button
           label="Join visit now"
           onPress={handleJoin}
-          loading={joining}
-          disabled={!appt?.videoLink}
+          disabled={!session}
           style={styles.joinBtn}
         />
 
@@ -95,7 +146,90 @@ export default function JoinScreen() {
   );
 }
 
+// ── In-call view (rendered inside LiveKitRoom which provides RoomContext) ─────
+function CallView({ onLeave }: { onLeave: () => void }) {
+  const room = useRoomContext();
+  const [micEnabled, setMicEnabled] = useState(true);
+  const [cameraEnabled, setCameraEnabled] = useState(true);
+
+  // Fetch all camera track references (local + remote)
+  const cameraTracks = useTracks([Track.Source.Camera]);
+
+  const remoteTrack = cameraTracks.find(
+    (t) => isTrackReference(t) && !t.participant.isLocal,
+  );
+  const localTrack = cameraTracks.find(
+    (t) => isTrackReference(t) && t.participant.isLocal,
+  );
+
+  const toggleMic = async () => {
+    const next = !micEnabled;
+    await room.localParticipant.setMicrophoneEnabled(next);
+    setMicEnabled(next);
+  };
+
+  const toggleCamera = async () => {
+    const next = !cameraEnabled;
+    await room.localParticipant.setCameraEnabled(next);
+    setCameraEnabled(next);
+  };
+
+  const handleLeave = async () => {
+    await room.disconnect();
+    onLeave();
+  };
+
+  return (
+    <View style={styles.callContainer}>
+      {/* Remote video — fills the screen */}
+      {isTrackReference(remoteTrack) ? (
+        <VideoTrack trackRef={remoteTrack} style={styles.remoteVideo} objectFit="cover" />
+      ) : (
+        <View style={styles.waitingContainer}>
+          <ActivityIndicator color={colors.white} size="large" />
+          <Text style={styles.waitingText}>Waiting for the other participant…</Text>
+        </View>
+      )}
+
+      {/* Local video — picture-in-picture corner */}
+      {isTrackReference(localTrack) && cameraEnabled && (
+        <View style={styles.localVideoWrapper}>
+          <VideoTrack trackRef={localTrack} style={styles.localVideo} mirror objectFit="cover" />
+        </View>
+      )}
+
+      {/* Control bar */}
+      <SafeAreaView style={styles.controlsSafe} edges={['bottom']}>
+        <View style={styles.controls}>
+          <TouchableOpacity
+            style={[styles.controlBtn, !micEnabled && styles.controlBtnOff]}
+            onPress={toggleMic}
+          >
+            <Ionicons name={micEnabled ? 'mic' : 'mic-off'} size={22} color={colors.white} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.endBtn} onPress={handleLeave}>
+            <Ionicons name="call" size={26} color={colors.white} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.controlBtn, !cameraEnabled && styles.controlBtnOff]}
+            onPress={toggleCamera}
+          >
+            <Ionicons
+              name={cameraEnabled ? 'videocam' : 'videocam-off'}
+              size={22}
+              color={colors.white}
+            />
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  // Pre-join
   safe: { flex: 1, backgroundColor: colors.background },
   loader: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   inner: {
@@ -133,5 +267,74 @@ const styles = StyleSheet.create({
   joinBtn: {
     width: '100%',
     marginTop: spacing.sm,
+  },
+
+  // Active call
+  callContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  remoteVideo: {
+    flex: 1,
+  },
+  waitingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.md,
+  },
+  waitingText: {
+    color: colors.white,
+    fontSize: 16,
+    opacity: 0.8,
+  },
+  localVideoWrapper: {
+    position: 'absolute',
+    top: 60,
+    right: 16,
+    width: 100,
+    height: 140,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  localVideo: {
+    flex: 1,
+  },
+  controlsSafe: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  controls: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.xl,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing['2xl'],
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  controlBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  controlBtnOff: {
+    backgroundColor: '#dc2626',
+  },
+  endBtn: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#dc2626',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ rotate: '135deg' }],
   },
 });

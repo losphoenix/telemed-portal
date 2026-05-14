@@ -116,8 +116,7 @@ export default function HomeScreen() {
               </View>
 
               {nextAppointment.deliveryMode === 'telehealth' &&
-                nextAppointment.status === 'CONFIRMED' &&
-                nextAppointment.videoLink && (
+                nextAppointment.status === 'CONFIRMED' && (
                   <TouchableOpacity
                     style={styles.joinBtn}
                     onPress={() =>

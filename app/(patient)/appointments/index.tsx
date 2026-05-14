@@ -48,7 +48,7 @@ export default function AppointmentsScreen() {
           <StatusBadge status={item.status} />
         </View>
 
-        {item.deliveryMode === 'telehealth' && item.status === 'CONFIRMED' && item.videoLink && (
+        {item.deliveryMode === 'telehealth' && item.status === 'CONFIRMED' && (
           <TouchableOpacity
             style={styles.joinBtn}
             onPress={() =>
