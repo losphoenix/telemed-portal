@@ -60,9 +60,10 @@ export default function ConversationScreen() {
   const [input, setInput] = useState('');
   const listRef = useRef<FlatList>(null);
 
+  const isValidId = !!id && /^[a-f\d]{24}$/i.test(id);
   const { data, isLoading, refetch } = useGetMessagesQuery(
     { conversationId: id ?? '', limit: 100 },
-    { skip: !id, pollingInterval: 5000 },
+    { skip: !isValidId, pollingInterval: 5000 },
   );
 
   const [sendMessage, { isLoading: isSending }] = useSendMessageMutation();

@@ -68,6 +68,128 @@ telemedicine-portal/
     └── theme/                # tokens, typography, spacing
 ```
 
+## Running a Development Build
+
+> **Why can't I just use Expo Go?**
+> This app includes LiveKit for telehealth video, which requires native modules that Expo Go does not bundle. A custom development build is required. This is a one-time setup — after the native binary is built, day-to-day development hot-reloads exactly like Expo Go.
+
+### Option A — Local build (iOS)
+
+**Prerequisites**
+
+- Xcode (from the Mac App Store)
+- Xcode Command Line Tools: `xcode-select --install`
+- CocoaPods 1.16+ installed via Homebrew
+
+**One-time machine setup**
+
+```bash
+# Install CocoaPods via Homebrew only — do not use gem install or RVM
+brew install cocoapods
+pod --version   # must be 1.16+
+```
+
+If you have RVM installed, it will corrupt the CocoaPods gem environment and break `pod install`. Remove it before continuing:
+
+```bash
+rvm implode --force
+# Open a new terminal after this
+```
+
+If you have MacPorts installed, its curl can interfere with downloading the WebRTC binary. Prepend system paths to avoid it:
+
+```bash
+export PATH="/usr/bin:/usr/local/bin:$PATH"
+```
+
+**First-time project setup**
+
+```bash
+yarn install
+yarn ios
+```
+
+`yarn ios` will:
+1. Run `pod install` to fetch all native dependencies (including a large WebRTC binary from GitHub — if it times out, just run `yarn ios` again)
+2. Compile the native app and install it on the iOS simulator
+3. Start the Metro dev server
+4. Open the app automatically
+
+The first build takes several minutes. Subsequent runs are fast because the native layer is already compiled.
+
+**Daily development (after first build)**
+
+Just start Metro — no rebuild needed:
+
+```bash
+npx expo start --localhost
+```
+
+Press `i` to open in the iOS simulator. Keep this terminal running while developing.
+
+**If the simulator shows "No script URL provided"**
+
+Metro was not running when the app opened. Start Metro first, then press `i`:
+
+```bash
+npx expo start --localhost
+# wait for QR code to appear, then press i
+```
+
+**If you need to rebuild the native layer** (after adding a new native package or if the iOS folder gets out of sync):
+
+```bash
+rm -rf ios
+npx expo prebuild --platform ios
+yarn ios
+```
+
+---
+
+### Option B — Cloud build via EAS (no Xcode required)
+
+EAS builds the native binary in Expo's cloud and gives you a download link. You install it once, then use the local Metro dev server for hot reload — no Xcode or CocoaPods needed on your machine.
+
+**One-time setup**
+
+```bash
+npm install -g eas-cli
+eas login
+```
+
+**Build**
+
+```bash
+eas build --profile development --platform ios
+# or for Android:
+eas build --profile development --platform android
+```
+
+EAS will print a link when the build finishes. Install the `.ipa` on your simulator or device via the Expo dashboard.
+
+**Daily development (after installing the EAS build)**
+
+```bash
+npx expo start
+```
+
+Scan the QR code using the installed dev build app — not Expo Go.
+
+---
+
+### Common mistakes
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `pod install` fails with `visionos` error | CocoaPods too old | `brew install cocoapods` |
+| `pod install` fails with gem/rexml errors | RVM polluting GEM_PATH | `rvm implode --force`, new terminal |
+| WebRTC download fails | Flaky GitHub CDN | Retry `yarn ios` |
+| "No script URL provided" on simulator | Metro not running | `npx expo start --localhost` then press `i` |
+| App opens Expo Go instead of dev build | Wrong app opened | Find TelemedicinePortal icon on simulator home screen |
+| Simulator connects but crashes on LiveKit screen | Running in Expo Go | Open the TelemedicinePortal dev build, not Expo Go |
+
+---
+
 ## Build Sequence
 
 1. auth and patient session

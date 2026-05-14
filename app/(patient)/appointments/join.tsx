@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { Button, Card } from '@/components';
 import { colors, spacing, typography, radius } from '@/theme';
 import { useGetAppointmentQuery } from '@/services/appointmentApi';
@@ -24,12 +25,15 @@ import {
 } from '@livekit/react-native';
 import { Track } from 'livekit-client';
 
-// Must be called once before any LiveKit usage
-registerGlobals();
+const isExpoGo = Constants.appOwnership === 'expo';
 
 export default function JoinScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+
+  useEffect(() => {
+    if (!isExpoGo) registerGlobals();
+  }, []);
 
   const { data: appt, isLoading: apptLoading } = useGetAppointmentQuery(id ?? '');
   const { data: session, isLoading: sessionLoading } = useGetVideoSessionByAppointmentQuery(
@@ -42,6 +46,10 @@ export default function JoinScreen() {
   const isLoading = apptLoading || sessionLoading;
 
   const handleJoin = () => {
+    if (isExpoGo) {
+      Alert.alert('Development build required', 'Video calls are not supported in Expo Go. Run yarn ios or use an EAS development build.');
+      return;
+    }
     if (!session) {
       Alert.alert('Not ready', 'No video session has been set up for this appointment yet.');
       return;
@@ -63,7 +71,7 @@ export default function JoinScreen() {
   }
 
   // ── Active call ─────────────────────────────────────────────────────────────
-  if (inCall && session) {
+  if (inCall && session && !isExpoGo) {
     return (
       <LiveKitRoom
         serverUrl={session.roomUrl}
