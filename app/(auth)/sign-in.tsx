@@ -7,7 +7,7 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,6 +23,8 @@ type FormValues = z.infer<typeof schema>;
 
 export default function SignInScreen() {
   const router = useRouter();
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const isSignup = mode === 'signup';
   const [generateCode, { isLoading }] = useGeneratePatientCodeMutation();
 
   const {
@@ -39,7 +41,7 @@ export default function SignInScreen() {
       await generateCode({ email: values.email }).unwrap();
       router.push({
         pathname: '/(auth)/verify',
-        params: { email: values.email },
+        params: { email: values.email, mode: mode ?? 'login' },
       });
     } catch (err: any) {
       const message = err?.data?.message ?? 'Something went wrong. Please try again.';
@@ -55,9 +57,11 @@ export default function SignInScreen() {
       >
         <View style={styles.header}>
           <View style={styles.logoMark} />
-          <Text style={typography.h2}>Welcome back</Text>
+          <Text style={typography.h2}>{isSignup ? 'Create your account' : 'Welcome back'}</Text>
           <Text style={[typography.body, styles.subtitle]}>
-            Enter your email to receive a verification code.
+            {isSignup
+              ? 'Enter your email to get started. We\'ll send you a verification code.'
+              : 'Enter your email to receive a verification code.'}
           </Text>
         </View>
 

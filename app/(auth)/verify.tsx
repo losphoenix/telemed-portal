@@ -22,6 +22,8 @@ import {
 import { useAppDispatch } from '@/store/hooks';
 import { setCredentials } from '@/store/authSlice';
 
+const BASE_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000') + '/api';
+
 const schema = z.object({
   emailCode: z.string().length(6, 'Enter the 6-digit code'),
 });
@@ -29,7 +31,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export default function VerifyScreen() {
-  const { email } = useLocalSearchParams<{ email: string }>();
+  const { email, mode } = useLocalSearchParams<{ email: string; mode?: string }>();
   const router = useRouter();
   const dispatch = useAppDispatch();
   const [loginPatient, { isLoading }] = useLoginPatientMutation();
@@ -54,6 +56,13 @@ export default function VerifyScreen() {
       // Decode the JWT payload (no library needed — base64 the middle segment)
       const payload = JSON.parse(atob(access_token.split('.')[1]));
 
+      // Fetch the full patient document to check onboarding status from DB
+      const meRes = await fetch(`${BASE_URL}/patient/${payload.id}`, {
+        headers: { Authorization: `Bearer ${access_token}` },
+      });
+      const me = meRes.ok ? await meRes.json() : null;
+      const onboardingComplete = !!me?.policyAcceptance?.acceptedAt;
+
       dispatch(
         setCredentials({
           token: access_token,
@@ -61,11 +70,20 @@ export default function VerifyScreen() {
             _id: payload.id,
             name: payload.name,
             email: payload.email,
+            onboardingComplete,
           },
         }),
       );
 
-      router.replace('/(patient)/home');
+      // Route based on whether onboarding was previously completed
+      if (!onboardingComplete) {
+        router.replace({
+          pathname: '/(auth)/onboarding',
+          params: { patientId: payload.id, email: payload.email },
+        });
+      } else {
+        router.replace('/(patient)/home');
+      }
     } catch (err: any) {
       const message = err?.data?.message ?? 'Invalid code. Please try again.';
       Alert.alert('Error', message);

@@ -14,13 +14,21 @@ export interface Conversation {
   _id: string;
   orgId: string;
   patientId: string;
-  doctorId: { _id: string; name: string };
+  doctorId?: { _id: string; name: string };
   appointmentId?: string;
+  type?: string;
   status: string;
   subject?: string;
   unreadCount?: number;
   lastMessage?: string;
   updatedAt: string;
+}
+
+export interface CreateConversationDto {
+  orgId?: string;
+  subject: string;
+  type: 'medical' | 'admin' | 'support';
+  initialMessage: string;
 }
 
 const conversationApi = api.injectEndpoints({
@@ -71,6 +79,15 @@ const conversationApi = api.injectEndpoints({
     getUnreadCount: build.query<{ unread: number }, string>({
       query: (conversationId) => `/conversation/${conversationId}/unread`,
     }),
+
+    createConversation: build.mutation<Conversation, CreateConversationDto>({
+      query: (body) => ({
+        url: '/conversation',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['Conversation'],
+    }),
   }),
 });
 
@@ -80,4 +97,5 @@ export const {
   useSendMessageMutation,
   useMarkReadMutation,
   useGetUnreadCountQuery,
+  useCreateConversationMutation,
 } = conversationApi;

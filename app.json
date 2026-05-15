@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "Telemedicine Portal",
-    "slug": "telemed-portal",
+    "name": "iMedical",
+    "slug": "imedical",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "scheme": "telemedicine",
+    "scheme": "imedical",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -53,7 +53,7 @@
         "expo-notifications",
         {
           "icon": "./assets/icon.png",
-          "color": "#2563EB"
+          "color": "#1a7a6e"
         }
       ],
       "expo-font",

@@ -1,8 +1,8 @@
 export const colors = {
   // Brand
-  primary: '#2563EB',       // blue-600 — CTAs, links, active states
-  primaryLight: '#EFF6FF',  // blue-50 — tinted backgrounds
-  primaryDark: '#1D4ED8',   // blue-700 — pressed states
+  primary: '#1a7a6e',       // teal — CTAs, links, active states
+  primaryLight: '#e8f4f2',  // teal-50 — tinted backgrounds
+  primaryDark: '#155f56',   // teal-700 — pressed states
 
   // AI
   ai: '#7C3AED',            // violet-600 — AI bubble backgrounds
@@ -20,7 +20,7 @@ export const colors = {
   confirmed: '#16A34A',
   pending: '#D97706',
   cancelled: '#6B7280',
-  completed: '#2563EB',
+  completed: '#1a7a6e',
   noShow: '#DC2626',
 
   // Neutrals
@@ -49,10 +49,10 @@ export const colors = {
 
   // Borders
   border: '#E5E7EB',
-  borderFocus: '#2563EB',
+  borderFocus: '#1a7a6e',
 
   // Chat bubbles
-  bubblePatient: '#2563EB',
+  bubblePatient: '#1a7a6e',
   bubblePatientText: '#FFFFFF',
   bubbleDoctor: '#F3F4F6',
   bubbleDoctorText: '#111827',

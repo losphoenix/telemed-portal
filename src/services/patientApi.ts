@@ -19,8 +19,40 @@ export interface Insurance {
 
 export type DocType = 'insurance-front' | 'insurance-back' | 'license-front' | 'license-back';
 
+export interface PatientProfileUpdate {
+  firstName: string;
+  lastName: string;
+  name: string;
+  phoneNumber: string;
+  dateOfBirth: string;
+  gender: string;
+  address: string;
+}
+
+export interface PatientFull {
+  _id: string;
+  email: string;
+  name: string;
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  address?: string;
+  policyAcceptance?: { acceptedAt?: string; ip?: string };
+  insurance?: Insurance;
+  driverLicense?: DriverLicense;
+}
+
 const patientApi = api.injectEndpoints({
   endpoints: (build) => ({
+    // Fetch the full patient document directly from /patient/:id
+    // — always returns all DB fields regardless of JWT strategy state
+    getPatient: build.query<PatientFull, string>({
+      query: (id) => `/patient/${id}`,
+      providesTags: ['Patient'],
+    }),
+
     uploadDocument: build.mutation<
       { insurance?: Insurance; driverLicense?: DriverLicense },
       { id: string; docType: DocType; uri: string; mimeType: string; fileName: string }
@@ -52,7 +84,36 @@ const patientApi = api.injectEndpoints({
       }),
       invalidatesTags: ['Patient'],
     }),
+
+    updateProfile: build.mutation<
+      void,
+      { id: string } & PatientProfileUpdate
+    >({
+      query: ({ id, ...body }) => ({
+        url: `/patient/${id}`,
+        method: 'PATCH',
+        body,
+      }),
+      invalidatesTags: ['Patient'],
+    }),
+
+    acceptPolicy: build.mutation<
+      { policyAcceptance: { acceptedAt: string; ip: string } },
+      { id: string }
+    >({
+      query: ({ id }) => ({
+        url: `/patient/${id}/accept-policy`,
+        method: 'PATCH',
+      }),
+      invalidatesTags: ['Patient'],
+    }),
   }),
 });
 
-export const { useUploadDocumentMutation, useUpdateDriverLicenseMutation } = patientApi;
+export const {
+  useGetPatientQuery,
+  useUploadDocumentMutation,
+  useUpdateDriverLicenseMutation,
+  useUpdateProfileMutation,
+  useAcceptPolicyMutation,
+} = patientApi;

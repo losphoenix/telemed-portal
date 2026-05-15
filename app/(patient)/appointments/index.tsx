@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card, StatusBadge, Avatar, Button } from '@/components';
@@ -15,13 +16,33 @@ import { colors, spacing, typography, radius } from '@/theme';
 import { useAppSelector } from '@/store/hooks';
 import { useGetAppointmentsByPatientQuery, Appointment } from '@/services/appointmentApi';
 
+const TEAL = '#1a7a6e';
+
 export default function AppointmentsScreen() {
   const router = useRouter();
-  const { patient } = useAppSelector((s) => s.auth);
+  const { patient, token } = useAppSelector((s) => s.auth);
 
-  const { data, isLoading, refetch } = useGetAppointmentsByPatientQuery(
-    { patientId: patient?._id ?? '', limit: 30 },
-    { skip: !patient?._id },
+  // Decode patientId from JWT as fallback when Redux patient hasn't loaded yet
+  const patientId =
+    patient?._id ??
+    (() => {
+      try {
+        return JSON.parse(atob(token!.split('.')[1])).id as string;
+      } catch {
+        return null;
+      }
+    })();
+
+  const { data, isLoading, isFetching, refetch } = useGetAppointmentsByPatientQuery(
+    { patientId: patientId ?? '', limit: 30 },
+    { skip: !patientId },
+  );
+
+  // Refetch every time the tab comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      if (patientId) refetch();
+    }, [patientId, refetch]),
   );
 
   const renderItem = ({ item }: { item: Appointment }) => (
@@ -68,13 +89,16 @@ export default function AppointmentsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={typography.h2}>My visits</Text>
-        <Button
-          label="Book new"
-          size="sm"
+      <View style={styles.topBar}>
+        <Text style={styles.topBarTitle}>My Visits</Text>
+        <TouchableOpacity
+          style={styles.bookBtn}
           onPress={() => router.push('/(patient)/appointments/book')}
-        />
+          activeOpacity={0.7}
+        >
+          <Ionicons name="add" size={18} color={TEAL} />
+          <Text style={styles.bookBtnText}>Book</Text>
+        </TouchableOpacity>
       </View>
 
       {isLoading ? (
@@ -87,7 +111,7 @@ export default function AppointmentsScreen() {
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           onRefresh={refetch}
-          refreshing={isLoading}
+          refreshing={isFetching}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="calendar-outline" size={48} color={colors.gray300} />
@@ -109,12 +133,33 @@ export default function AppointmentsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  header: {
+  topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    backgroundColor: TEAL,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
+  },
+  topBarTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#ffffff',
+    letterSpacing: 0.2,
+  },
+  bookBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  bookBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: TEAL,
   },
   loader: { marginTop: spacing['3xl'] },
   list: { padding: spacing.base, gap: spacing.md },

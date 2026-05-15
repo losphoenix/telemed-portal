@@ -56,15 +56,6 @@ export default function PatientLayout() {
         }}
       />
       <Tabs.Screen
-        name="concierge"
-        options={{
-          title: 'AI Chat',
-          tabBarIcon: ({ focused }) => (
-            <TabIcon name="chatbubble-ellipses" focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="appointments/index"
         options={{
           title: 'Visits',
@@ -81,15 +72,20 @@ export default function PatientLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: 'My Health',
           tabBarIcon: ({ focused }) => <TabIcon name="person" focused={focused} />,
         }}
       />
       {/* Hidden from tab bar */}
+      <Tabs.Screen name="profile-detail" options={{ href: null }} />
+      <Tabs.Screen name="profile-edit" options={{ href: null }} />
+      <Tabs.Screen name="concierge" options={{ href: null }} />
+      <Tabs.Screen name="locations/[id]" options={{ href: null }} />
       <Tabs.Screen name="appointments/[id]" options={{ href: null }} />
       <Tabs.Screen name="appointments/book" options={{ href: null }} />
       <Tabs.Screen name="appointments/join" options={{ href: null }} />
       <Tabs.Screen name="conversations/[id]" options={{ href: null }} />
+      <Tabs.Screen name="conversations/new" options={{ href: null }} />
       <Tabs.Screen name="follow-up/[id]" options={{ href: null }} />
       <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="documents" options={{ href: null }} />

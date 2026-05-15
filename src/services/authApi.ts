@@ -3,11 +3,18 @@ import { api } from './api';
 export interface PatientSession {
   _id: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
   phoneNumber?: string;
   dateOfBirth?: string;
   gender?: string;
+  address?: string;
   profileImage?: string;
+  policyAcceptance?: {
+    acceptedAt?: string;
+    ip?: string;
+  };
 }
 
 export interface LoginResponse {

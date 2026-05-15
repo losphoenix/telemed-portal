@@ -5,347 +5,603 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  ScrollView,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { ScreenContainer, Card, StatusBadge, Avatar } from '@/components';
-import { colors, spacing, typography, radius } from '@/theme';
+import { Avatar } from '@/components';
+import { colors, spacing, radius } from '@/theme';
 import { useAppSelector } from '@/store/hooks';
 import { useGetAppointmentsByPatientQuery } from '@/services/appointmentApi';
-import { useGetFollowUpsByPatientQuery } from '@/services/followUpApi';
-import { useGetConversationsQuery } from '@/services/conversationApi';
+import { useGetOrganizationsQuery } from '@/services/orgApi';
 
-export default function HomeScreen() {
-  const router = useRouter();
-  const { patient } = useAppSelector((s) => s.auth);
+const TEAL = '#1a7a6e';
+const TEAL_LIGHT = '#e8f4f2';
 
-  const { data: apptData, isLoading: apptLoading } = useGetAppointmentsByPatientQuery(
-    { patientId: patient?._id ?? '', limit: 3 },
-    { skip: !patient?._id },
-  );
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-  const { data: followUps } = useGetFollowUpsByPatientQuery(patient?._id ?? '', {
-    skip: !patient?._id,
+function formatApptDate(iso: string): string {
+  const d = new Date(iso);
+  const datePart = d.toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric',
   });
-
-  const { data: conversations } = useGetConversationsQuery(
-    { orgId: '' },
-    { skip: true },
-  );
-
-  const nextAppointment = apptData?.data?.[0];
-  const pendingFollowUp = followUps?.find(
-    (f) => f.status === 'PENDING' || f.status === 'SENT',
-  );
-  const totalUnread = conversations?.data?.reduce(
-    (acc, c) => acc + (c.unreadCount ?? 0),
-    0,
-  );
-
-  const firstName = patient?.name?.split(' ')[0] ?? 'there';
-
-  return (
-    <ScreenContainer
-      onRefresh={() => {}}
-      refreshing={false}
-      contentStyle={styles.content}
-    >
-      {/* Greeting */}
-      <View style={styles.greeting}>
-        <View>
-          <Text style={typography.h3}>Hi, {firstName} 👋</Text>
-          <Text style={[typography.bodySmall, { marginTop: 2 }]}>
-            How are you feeling today?
-          </Text>
-        </View>
-        <TouchableOpacity onPress={() => router.push('/(patient)/notifications')}>
-          <Ionicons name="notifications-outline" size={24} color={colors.gray600} />
-        </TouchableOpacity>
-      </View>
-
-      {/* AI Chat CTA */}
-      <TouchableOpacity
-        style={styles.aiCta}
-        onPress={() => router.push('/(patient)/concierge')}
-        activeOpacity={0.85}
-      >
-        <View style={styles.aiCtaIcon}>
-          <Ionicons name="sparkles" size={20} color={colors.white} />
-        </View>
-        <View style={styles.aiCtaText}>
-          <Text style={[typography.h4, { color: colors.white }]}>
-            Chat with AI Care Assistant
-          </Text>
-          <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 2 }}>
-            Book, ask questions, or check in
-          </Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.7)" />
-      </TouchableOpacity>
-
-      {/* Next Appointment */}
-      <View style={styles.section}>
-        <Text style={[typography.h4, styles.sectionTitle]}>Upcoming visit</Text>
-        {apptLoading ? (
-          <ActivityIndicator color={colors.primary} />
-        ) : nextAppointment ? (
-          <Card>
-            <TouchableOpacity
-              onPress={() =>
-                router.push(`/(patient)/appointments/${nextAppointment._id}`)
-              }
-            >
-              <View style={styles.apptRow}>
-                <Avatar name={nextAppointment.doctorId?.name} size={44} />
-                <View style={styles.apptInfo}>
-                  <Text style={typography.h4}>{nextAppointment.doctorId?.name}</Text>
-                  <Text style={typography.bodySmall}>
-                    {nextAppointment.serviceId?.name}
-                  </Text>
-                  <Text style={[typography.caption, styles.apptDate]}>
-                    {new Date(nextAppointment.scheduledAt).toLocaleDateString('en-US', {
-                      weekday: 'short',
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </Text>
-                </View>
-                <StatusBadge status={nextAppointment.status} />
-              </View>
-
-              {nextAppointment.deliveryMode === 'telehealth' &&
-                nextAppointment.status === 'CONFIRMED' && (
-                  <TouchableOpacity
-                    style={styles.joinBtn}
-                    onPress={() =>
-                      router.push({
-                        pathname: '/(patient)/appointments/join',
-                        params: { id: nextAppointment._id },
-                      })
-                    }
-                  >
-                    <Ionicons name="videocam" size={16} color={colors.white} />
-                    <Text style={styles.joinBtnText}>Join visit</Text>
-                  </TouchableOpacity>
-                )}
-            </TouchableOpacity>
-          </Card>
-        ) : (
-          <Card>
-            <Text style={typography.bodySmall}>No upcoming visits.</Text>
-            <TouchableOpacity
-              style={styles.bookLink}
-              onPress={() => router.push('/(patient)/appointments/book')}
-            >
-              <Text style={{ color: colors.primary, fontWeight: '600', fontSize: 14 }}>
-                Book now →
-              </Text>
-            </TouchableOpacity>
-          </Card>
-        )}
-      </View>
-
-      {/* Pending Follow-up */}
-      {pendingFollowUp && (
-        <View style={styles.section}>
-          <Text style={[typography.h4, styles.sectionTitle]}>Follow-up check-in</Text>
-          <Card style={styles.followUpCard}>
-            <TouchableOpacity
-              onPress={() =>
-                router.push(`/(patient)/follow-up/${pendingFollowUp._id}`)
-              }
-            >
-              <View style={styles.followUpRow}>
-                <View style={styles.followUpIcon}>
-                  <Ionicons name="chatbubble-ellipses" size={18} color={colors.ai} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={typography.h4}>Your doctor has a question</Text>
-                  <Text style={typography.bodySmall}>
-                    {pendingFollowUp.aiQuestion
-                      ? pendingFollowUp.aiQuestion.slice(0, 80) + '...'
-                      : 'Tap to respond to your follow-up check-in.'}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.gray400} />
-              </View>
-            </TouchableOpacity>
-          </Card>
-        </View>
-      )}
-
-      {/* Unread messages */}
-      {totalUnread && totalUnread > 0 ? (
-        <View style={styles.section}>
-          <TouchableOpacity
-            onPress={() => router.push('/(patient)/conversations/index')}
-          >
-            <Card style={styles.unreadCard}>
-              <Ionicons name="mail-unread" size={20} color={colors.primary} />
-              <Text style={[typography.body, { flex: 1 }]}>
-                You have{' '}
-                <Text style={{ fontWeight: '700' }}>{totalUnread} unread</Text>{' '}
-                message{totalUnread > 1 ? 's' : ''}
-              </Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.gray400} />
-            </Card>
-          </TouchableOpacity>
-        </View>
-      ) : null}
-
-      {/* Quick actions */}
-      <View style={styles.section}>
-        <Text style={[typography.h4, styles.sectionTitle]}>Quick actions</Text>
-        <View style={styles.quickActions}>
-          <QuickAction
-            icon="calendar-outline"
-            label="Book visit"
-            onPress={() => router.push('/(patient)/appointments/book')}
-          />
-          <QuickAction
-            icon="chatbubbles-outline"
-            label="Message doctor"
-            onPress={() => router.push('/(patient)/conversations/index')}
-          />
-          <QuickAction
-            icon="person-outline"
-            label="My profile"
-            onPress={() => router.push('/(patient)/profile')}
-          />
-        </View>
-      </View>
-    </ScreenContainer>
-  );
+  const timePart = d.toLocaleTimeString('en-US', {
+    hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short',
+  });
+  return `${datePart} at ${timePart}`;
 }
 
-function QuickAction({
-  icon,
-  label,
-  onPress,
+// ─── Action card (horizontal scroll item) ────────────────────────────────────
+
+function ActionCard({
+  title, subtitle, icon, onPress,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
+  title: string;
+  subtitle: string;
+  icon: string;
   onPress: () => void;
 }) {
   return (
-    <TouchableOpacity style={styles.quickAction} onPress={onPress} activeOpacity={0.8}>
-      <View style={styles.quickActionIcon}>
-        <Ionicons name={icon} size={22} color={colors.primary} />
+    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={styles.actionCard}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.actionTitle}>{title}</Text>
+        <Text style={styles.actionSubtitle} numberOfLines={2}>{subtitle}</Text>
       </View>
-      <Text style={[typography.caption, { textAlign: 'center', marginTop: 4 }]}>
-        {label}
-      </Text>
+      <View style={styles.actionIconWrap}>
+        <Ionicons name={icon as any} size={20} color={TEAL} />
+      </View>
     </TouchableOpacity>
   );
 }
 
+// ─── Visit type card (schedule grid) ─────────────────────────────────────────
+
+function VisitCard({
+  icon, label, onPress, iconBg,
+}: {
+  icon: string;
+  label: string;
+  onPress: () => void;
+  iconBg: string;
+}) {
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={styles.visitCard}>
+      <View style={[styles.visitIconWrap, { backgroundColor: iconBg }]}>
+        <Ionicons name={icon as any} size={26} color={TEAL} />
+      </View>
+      <Text style={styles.visitLabel}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+// ─── Main screen ──────────────────────────────────────────────────────────────
+
+export default function HomeScreen() {
+  const router = useRouter();
+  const { patient, token } = useAppSelector((s) => s.auth);
+
+  const patientId =
+    patient?._id ??
+    (() => {
+      try { return JSON.parse(atob(token!.split('.')[1])).id as string; }
+      catch { return null; }
+    })();
+
+  const { data: apptData, isLoading: apptLoading } = useGetAppointmentsByPatientQuery(
+    { patientId: patientId ?? '', limit: 1 },
+    { skip: !patientId },
+  );
+
+  const { data: orgs = [] } = useGetOrganizationsQuery();
+
+  const nextAppt = apptData?.data?.[0];
+  const firstName = patient?.name?.split(' ')[0] ?? 'there';
+  const isVideo = nextAppt?.deliveryMode === 'telehealth';
+
+  // Action items — static for now, will be driven by patient profile completeness
+  const actions = [
+    {
+      title: 'Add Insurance Details',
+      subtitle: 'Accomplish by May 18, 2026',
+      icon: 'card-outline',
+      onPress: () => Alert.alert('Add Insurance', 'Insurance setup coming soon.'),
+    },
+    {
+      title: 'Choose a PCP',
+      subtitle: 'Select your primary care provider',
+      icon: 'person-circle-outline',
+      onPress: () => Alert.alert('Choose a PCP', 'PCP selection coming soon.'),
+    },
+    {
+      title: 'New Member Health History',
+      subtitle: 'Complete your medical history',
+      icon: 'document-text-outline',
+      onPress: () => Alert.alert('Health History', 'Health history form coming soon.'),
+    },
+  ];
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top']}>
+
+      {/* ── Top bar ── */}
+      <View style={styles.topBar}>
+        {/* Left: avatar + name */}
+        <View style={styles.profileSwitcher}>
+          <View style={styles.topAvatar}>
+            <Text style={styles.topAvatarText}>
+              {firstName.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+          <Text style={styles.topName}>{firstName}</Text>
+        </View>
+
+        {/* Right: notification bell */}
+        <TouchableOpacity
+          onPress={() => router.push('/(patient)/notifications')}
+          style={styles.topIconBtn}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="notifications-outline" size={22} color={colors.white} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+
+        {/* ── Upcoming appointment ── */}
+        {apptLoading ? (
+          <View style={styles.apptCardWrap}>
+            <ActivityIndicator color={TEAL} />
+          </View>
+        ) : nextAppt ? (
+          <View style={styles.apptCardWrap}>
+            <View style={styles.apptCard}>
+              <View style={styles.apptCardInner}>
+                {/* Text info */}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.apptCardTitle} numberOfLines={2}>
+                    Upcoming {nextAppt.serviceId?.name ?? (isVideo ? 'Remote Visit' : 'Visit')}
+                    {'\n'}with {(nextAppt.doctorId as any)?.name ?? 'your provider'}
+                  </Text>
+                  <Text style={styles.apptCardDate}>{formatApptDate(nextAppt.scheduledAt)}</Text>
+                </View>
+                {/* Doctor avatar */}
+                <View style={styles.apptAvatarWrap}>
+                  <Avatar name={(nextAppt.doctorId as any)?.name} size={56} />
+                  {isVideo && (
+                    <View style={styles.apptVideoBadge}>
+                      <Ionicons name="videocam" size={10} color={colors.white} />
+                    </View>
+                  )}
+                </View>
+              </View>
+              {/* Action buttons */}
+              <View style={styles.apptBtns}>
+                <TouchableOpacity
+                  style={styles.apptBtnPrimary}
+                  onPress={() => router.push(`/(patient)/appointments/${nextAppt._id}`)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.apptBtnPrimaryText}>View Details</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        ) : null}
+
+        {/* ── Your Actions ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Your Actions</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.actionsScroll}
+          >
+            {actions.map((a) => (
+              <ActionCard
+                key={a.title}
+                title={a.title}
+                subtitle={a.subtitle}
+                icon={a.icon}
+                onPress={a.onPress}
+              />
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* ── Schedule a Visit ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Schedule a Visit</Text>
+          <View style={styles.scheduleHint}>
+            <Ionicons name="notifications-outline" size={13} color={colors.textSecondary} />
+            <Text style={styles.scheduleHintText}>
+              Billed to you or your insurance.{' '}
+              <Text style={styles.scheduleLearnMore}>Learn more</Text>
+            </Text>
+          </View>
+          <View style={styles.visitGrid}>
+            <VisitCard
+              icon="videocam-outline"
+              label="Video Visit"
+              iconBg={TEAL_LIGHT}
+              onPress={() => router.push('/(patient)/appointments/book')}
+            />
+            <VisitCard
+              icon="business-outline"
+              label="In-Person Visit"
+              iconBg="#fef3e2"
+              onPress={() => router.push('/(patient)/appointments/book')}
+            />
+            <VisitCard
+              icon="clipboard-outline"
+              label={`Annual\nCheckup`}
+              iconBg="#f0f4ff"
+              onPress={() => router.push('/(patient)/appointments/book')}
+            />
+          </View>
+        </View>
+
+        {/* ── Nearby Locations ── */}
+        {orgs.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Nearby Locations</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.actionsScroll}
+            >
+              {orgs.map((org) => (
+                <TouchableOpacity
+                  key={org._id}
+                  style={styles.locationCard}
+                  onPress={() => router.push(`/(patient)/locations/${org._id}`)}
+                  activeOpacity={0.8}
+                >
+                  {/* Placeholder image area */}
+                  <View style={styles.locationImgPlaceholder}>
+                    <Ionicons name="business" size={28} color={TEAL} />
+                  </View>
+                  <View style={styles.locationCardBody}>
+                    <Text style={styles.locationName} numberOfLines={1}>{org.name}</Text>
+                    {(org.address || org.contactInfo?.address) && (
+                      <Text style={styles.locationAddress} numberOfLines={2}>
+                        {org.address ?? org.contactInfo?.address}
+                      </Text>
+                    )}
+                    <View style={styles.locationChip}>
+                      <Ionicons name="navigate-outline" size={11} color={TEAL} />
+                      <Text style={styles.locationChipText}>Get directions</Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* No upcoming appt nudge */}
+        {!apptLoading && !nextAppt && (
+          <View style={styles.section}>
+            <TouchableOpacity
+              style={styles.bookNudge}
+              onPress={() => router.push('/(patient)/appointments/book')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="calendar-outline" size={20} color={TEAL} />
+              <Text style={styles.bookNudgeText}>No upcoming visits — book one now</Text>
+              <Ionicons name="chevron-forward" size={18} color={TEAL} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  content: {
-    gap: spacing.base,
-  },
-  greeting: {
+  safe: { flex: 1, backgroundColor: colors.background },
+
+  // Top bar
+  topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: spacing.sm,
+    backgroundColor: TEAL,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
   },
-  aiCta: {
-    backgroundColor: colors.primary,
-    borderRadius: 14,
-    padding: spacing.base,
+  profileSwitcher: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-  },
-  aiCtaIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.md,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  aiCtaText: { flex: 1 },
-  section: {
     gap: spacing.sm,
   },
-  sectionTitle: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  apptRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  apptInfo: { flex: 1, gap: 2 },
-  apptDate: { marginTop: 2, color: colors.primary },
-  joinBtn: {
-    marginTop: spacing.md,
-    backgroundColor: colors.primary,
-    borderRadius: radius.md,
-    flexDirection: 'row',
+  topAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
   },
-  joinBtnText: {
+  topAvatarText: {
     color: colors.white,
-    fontWeight: '600',
-    fontSize: 14,
+    fontWeight: '700',
+    fontSize: 15,
   },
-  bookLink: {
-    marginTop: spacing.sm,
+  topName: {
+    color: colors.white,
+    fontSize: 17,
+    fontWeight: '700',
   },
-  followUpCard: {
-    borderLeftWidth: 3,
-    borderLeftColor: colors.ai,
-  },
-  followUpRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  followUpIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.full,
-    backgroundColor: colors.aiLight,
+  topIconBtn: {
+    width: 38,
+    height: 38,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: radius.full,
   },
-  unreadCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
+
+  // Scroll
+  scroll: { flex: 1 },
+  scrollContent: {
+    paddingBottom: spacing['3xl'],
+    gap: spacing.xl,
   },
-  quickActions: {
-    flexDirection: 'row',
-    gap: spacing.md,
+
+  // Appointment card
+  apptCardWrap: {
+    paddingHorizontal: spacing.base,
+    paddingTop: spacing.base,
   },
-  quickAction: {
-    flex: 1,
-    alignItems: 'center',
-    backgroundColor: colors.surface,
+  apptCard: {
+    backgroundColor: colors.white,
     borderRadius: radius.lg,
-    paddingVertical: spacing.md,
+    padding: spacing.base,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  apptCardInner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  apptCardTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    lineHeight: 22,
+    marginBottom: 6,
+  },
+  apptCardDate: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  apptAvatarWrap: {
+    position: 'relative',
+    flexShrink: 0,
+  },
+  apptVideoBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: TEAL,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.white,
+  },
+  apptBtns: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  apptBtnPrimary: {
+    flex: 1,
+    backgroundColor: TEAL,
+    borderRadius: radius.xl,
+    paddingVertical: 9,
+    alignItems: 'center',
+  },
+  apptBtnPrimaryText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  apptBtnSecondary: {
+    flex: 1,
+    borderRadius: radius.xl,
+    paddingVertical: 9,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+  },
+  apptBtnSecondaryText: {
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
+  // Sections
+  section: {
+    paddingHorizontal: spacing.base,
+    gap: spacing.md,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+
+  // Action cards (horizontal scroll)
+  actionsScroll: {
+    gap: spacing.md,
+    paddingRight: spacing.base,
+  },
+  actionCard: {
+    width: 180,
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
+    padding: spacing.base,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 1,
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
   },
-  quickActionIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.full,
-    backgroundColor: colors.primaryLight,
+  actionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+  actionSubtitle: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    lineHeight: 15,
+  },
+  actionIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.md,
+    backgroundColor: TEAL_LIGHT,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
+  },
+
+  // Schedule visit
+  scheduleHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: -spacing.xs,
+  },
+  scheduleHintText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  scheduleLearnMore: {
+    color: TEAL,
+    fontWeight: '500',
+    textDecorationLine: 'underline',
+  },
+  visitGrid: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  visitCard: {
+    flex: 1,
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.base,
+    paddingHorizontal: spacing.sm,
+    alignItems: 'center',
+    gap: spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  visitIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  visitLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    textAlign: 'center',
+    lineHeight: 16,
+  },
+
+  // Location cards
+  locationCard: {
+    width: 180,
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  locationImgPlaceholder: {
+    width: '100%',
+    height: 90,
+    backgroundColor: TEAL_LIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  locationCardBody: {
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
+  locationName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  locationAddress: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    lineHeight: 15,
+  },
+  locationChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: spacing.xs,
+  },
+  locationChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: TEAL,
+  },
+
+  // No appt nudge
+  bookNudge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: TEAL_LIGHT,
+    borderRadius: radius.lg,
+    padding: spacing.base,
+  },
+  bookNudgeText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    color: TEAL,
   },
 });

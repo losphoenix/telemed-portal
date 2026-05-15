@@ -5,15 +5,15 @@ export interface Appointment {
   orgId: string;
   patientId: string;
   doctorId: { _id: string; name: string; specialty?: string };
-  serviceId: { _id: string; name: string; duration: number; deliveryMode: string };
+  serviceId: { _id: string; name: string; defaultDuration: number; deliveryMode: string };
   roomId?: { _id: string; name: string };
   scheduledAt: string;
   duration: number;
+  priceAtBooking: number;
   status: string;
   deliveryMode: string;
   videoLink?: string;
   notes?: string;
-  remindersSent?: string[];
 }
 
 export interface TimeSlot {
@@ -21,30 +21,29 @@ export interface TimeSlot {
   end: string;
 }
 
-export interface CreateAppointmentDto {
-  orgId: string;
-  patientId: string;
+export interface DoctorSlots {
   doctorId: string;
-  serviceId: string;
-  roomId?: string;
-  scheduledAt: string;
+  doctorName: string;
+  orgId: string;
+  specialty?: string;
+  price: number;
   duration: number;
   deliveryMode: string;
+  slots: TimeSlot[];
+}
+
+export interface BookAppointmentDto {
+  serviceId: string;
+  doctorId: string;
+  orgId: string;
+  patientId: string;
+  scheduledAt: string;
   notes?: string;
-  data?: Record<string, any>;
+  intakeFormData?: Record<string, any>;
 }
 
 const appointmentApi = api.injectEndpoints({
   endpoints: (build) => ({
-    getAppointments: build.query<
-      { data: Appointment[]; total: number },
-      { orgId: string; limit?: number; offset?: number }
-    >({
-      query: ({ orgId, limit = 20, offset = 0 }) =>
-        `/appointment?orgId=${orgId}&limit=${limit}&offset=${offset}`,
-      providesTags: ['Appointment'],
-    }),
-
     getAppointmentsByPatient: build.query<
       { data: Appointment[]; total: number },
       { patientId: string; limit?: number; offset?: number }
@@ -60,16 +59,18 @@ const appointmentApi = api.injectEndpoints({
     }),
 
     getAvailableSlots: build.query<
-      TimeSlot[],
-      { doctorId: string; date: string; duration?: number; workStart?: string; workEnd?: string }
+      DoctorSlots[],
+      { serviceId: string; date: string; orgId?: string }
     >({
-      query: ({ doctorId, date, duration = 30, workStart = '09:00', workEnd = '17:00' }) =>
-        `/appointment/slots/${doctorId}?date=${date}&duration=${duration}&workStart=${workStart}&workEnd=${workEnd}`,
+      query: ({ serviceId, date, orgId }) => ({
+        url: `/appointment/slots/service/${serviceId}`,
+        params: { date, ...(orgId && { orgId }) },
+      }),
     }),
 
-    createAppointment: build.mutation<Appointment, CreateAppointmentDto>({
+    bookAppointment: build.mutation<Appointment, BookAppointmentDto>({
       query: (body) => ({
-        url: '/appointment',
+        url: '/appointment/book',
         method: 'POST',
         body,
       }),
@@ -88,10 +89,9 @@ const appointmentApi = api.injectEndpoints({
 });
 
 export const {
-  useGetAppointmentsQuery,
   useGetAppointmentsByPatientQuery,
   useGetAppointmentQuery,
   useGetAvailableSlotsQuery,
-  useCreateAppointmentMutation,
+  useBookAppointmentMutation,
   useCancelAppointmentMutation,
 } = appointmentApi;

@@ -6,17 +6,23 @@ export interface ConciergeMessage {
   content: string;
   timestamp: Date;
   isStreaming?: boolean;
+  /** Set on the AI confirmation message when an appointment was booked */
+  bookingInfo?: {
+    appointmentId: string;
+    conversationId: string;
+    scheduledAt: string;
+  };
 }
 
 export type ConciergeIntent =
-  | 'BOOK'
-  | 'MESSAGE'
-  | 'FOLLOW_UP'
+  | 'APPOINTMENT_BOOKED'
   | 'ESCALATE'
   | 'GENERAL';
 
 export interface IntentRoute {
   intent: ConciergeIntent;
+  /** Expo Router path to navigate to after the intent is handled */
   route?: string;
-  params?: Record<string, string>;
+  /** Extra metadata from the backend (appointmentId, conversationId, etc.) */
+  data?: Record<string, string>;
 }
