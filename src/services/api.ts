@@ -58,6 +58,7 @@ export const api = createApi({
     'Service',
     'Doctor',
     'AiSession',
+    'IntakeForm',
   ],
   endpoints: () => ({}),
 });

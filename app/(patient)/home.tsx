@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,18 +6,26 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
-  Alert,
+  RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { Avatar } from '@/components';
 import { colors, spacing, radius } from '@/theme';
 import { useAppSelector } from '@/store/hooks';
 import { useGetAppointmentsByPatientQuery } from '@/services/appointmentApi';
 import { useGetOrganizationsQuery } from '@/services/orgApi';
+import { useGetPatientQuery } from '@/services/patientApi';
+import { useGetVideoSessionByAppointmentQuery } from '@/services/videoSessionApi';
 
 const TEAL = '#1a7a6e';
+const JOIN_WINDOW_MS = 10 * 60 * 1000;
+
+function canJoinNow(scheduledAt: string) {
+  return Date.now() >= new Date(scheduledAt).getTime() - JOIN_WINDOW_MS;
+}
 const TEAL_LIGHT = '#e8f4f2';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -76,6 +84,77 @@ function VisitCard({
   );
 }
 
+// ─── Active visit card ────────────────────────────────────────────────────────
+
+function ActiveVisitCard({ appt }: { appt: any }) {
+  const router = useRouter();
+  const isVideo = appt.deliveryMode === 'video';
+  const isLive = appt.status === 'in_progress';
+  const isActive = appt.status === 'confirmed' || appt.status === 'in_progress';
+
+  const { data: videoSession } = useGetVideoSessionByAppointmentQuery(appt._id, {
+    skip: !isVideo || !isActive || !canJoinNow(appt.scheduledAt),
+    pollingInterval: 15_000,
+  });
+
+  const showJoin = isVideo && isActive && canJoinNow(appt.scheduledAt) &&
+    !!videoSession && videoSession.status !== 'completed';
+
+  return (
+    <TouchableOpacity
+      style={[styles.apptCard, isLive && styles.apptCardLive]}
+      onPress={() => router.push(`/(patient)/appointments/${appt._id}`)}
+      activeOpacity={0.85}
+    >
+      <View style={styles.apptCardInner}>
+        {/* Text info */}
+        <View style={{ flex: 1 }}>
+          {isLive && (
+            <View style={styles.liveBadge}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>Live Now</Text>
+            </View>
+          )}
+          <Text style={styles.apptCardTitle} numberOfLines={2}>
+            {(appt.serviceId as any)?.name ?? (isVideo ? 'Remote Visit' : 'Visit')}
+            {'\n'}with {(appt.doctorId as any)?.name ?? 'your provider'}
+          </Text>
+          <Text style={styles.apptCardDate}>{formatApptDate(appt.scheduledAt)}</Text>
+          {isVideo && (
+            <View style={styles.apptModeBadge}>
+              <Ionicons name="videocam" size={11} color={TEAL} />
+              <Text style={styles.apptModeBadgeText}>Video</Text>
+            </View>
+          )}
+        </View>
+        {/* Doctor avatar */}
+        <View style={styles.apptAvatarWrap}>
+          <Avatar name={(appt.doctorId as any)?.name} size={52} />
+          {isLive && (
+            <View style={styles.apptLiveDotBadge} />
+          )}
+        </View>
+      </View>
+      {showJoin && (
+        <TouchableOpacity
+          style={styles.joinBtn}
+          activeOpacity={0.85}
+          onPress={(e) => {
+            e.stopPropagation?.();
+            router.push({
+              pathname: '/(patient)/appointments/join',
+              params: { id: appt._id },
+            });
+          }}
+        >
+          <Ionicons name="videocam" size={15} color={colors.white} />
+          <Text style={styles.joinBtnText}>Join video visit</Text>
+        </TouchableOpacity>
+      )}
+    </TouchableOpacity>
+  );
+}
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
@@ -89,36 +168,69 @@ export default function HomeScreen() {
       catch { return null; }
     })();
 
-  const { data: apptData, isLoading: apptLoading } = useGetAppointmentsByPatientQuery(
-    { patientId: patientId ?? '', limit: 1 },
+  const { data: apptData, isLoading: apptLoading, isFetching: apptFetching, refetch: refetchAppts } = useGetAppointmentsByPatientQuery(
+    { patientId: patientId ?? '', limit: 20 },
     { skip: !patientId },
   );
 
-  const { data: orgs = [] } = useGetOrganizationsQuery();
+  const { data: orgs = [], refetch: refetchOrgs } = useGetOrganizationsQuery();
+  const { data: me, refetch: refetchMe } = useGetPatientQuery(patientId ?? '', { skip: !patientId });
 
-  const nextAppt = apptData?.data?.[0];
-  const firstName = patient?.name?.split(' ')[0] ?? 'there';
-  const isVideo = nextAppt?.deliveryMode === 'telehealth';
+  const refetchAll = useCallback(() => {
+    if (!patientId) return;
+    refetchAppts();
+    refetchOrgs();
+    refetchMe();
+  }, [patientId, refetchAppts, refetchOrgs, refetchMe]);
 
-  // Action items — static for now, will be driven by patient profile completeness
+  useFocusEffect(
+    useCallback(() => {
+      refetchAll();
+    }, [refetchAll]),
+  );
+
+  const activeAppts = (apptData?.data ?? [])
+    .filter((a) => a.status === 'in_progress' || a.status === 'confirmed')
+    .sort((a, b) => {
+      // in_progress floats to top, then earliest scheduledAt first
+      if (a.status === 'in_progress' && b.status !== 'in_progress') return -1;
+      if (b.status === 'in_progress' && a.status !== 'in_progress') return 1;
+      return new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime();
+    });
+
+  const rawName = patient?.name ?? '';
+  const firstName = rawName.includes('@')
+    ? rawName.split('@')[0]
+    : rawName.split(' ')[0] || 'there';
+
+  const insuranceComplete = !!(
+    me?.insurance?.provider &&
+    me?.insurance?.memberId &&
+    me?.insurance?.groupNumber &&
+    me?.driverLicense?.number &&
+    me?.driverLicense?.state &&
+    me?.driverLicense?.expiryDate
+  );
+
+  // Action items — hide "Add Insurance Details" once insurance + license are complete
   const actions = [
-    {
+    ...(!insuranceComplete ? [{
       title: 'Add Insurance Details',
-      subtitle: 'Accomplish by May 18, 2026',
+      subtitle: 'Add your insurance & ID documents',
       icon: 'card-outline',
-      onPress: () => Alert.alert('Add Insurance', 'Insurance setup coming soon.'),
+      onPress: () => router.push('/(patient)/documents'),
+    }] : []),
+    {
+      title: 'PCP',
+      subtitle: 'View your primary care provider',
+      icon: 'medical-outline',
+      onPress: () => router.push('/(patient)/profile'),
     },
     {
-      title: 'Choose a PCP',
-      subtitle: 'Select your primary care provider',
-      icon: 'person-circle-outline',
-      onPress: () => Alert.alert('Choose a PCP', 'PCP selection coming soon.'),
-    },
-    {
-      title: 'New Member Health History',
-      subtitle: 'Complete your medical history',
+      title: 'Intake Form History',
+      subtitle: 'View your past intake forms',
       icon: 'document-text-outline',
-      onPress: () => Alert.alert('Health History', 'Health history form coming soon.'),
+      onPress: () => router.push('/(patient)/intake-form'),
     },
   ];
 
@@ -151,46 +263,32 @@ export default function HomeScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={apptFetching}
+            onRefresh={refetchAll}
+            tintColor={TEAL}
+            colors={[TEAL]}
+          />
+        }
       >
 
-        {/* ── Upcoming appointment ── */}
+        {/* ── Active Visits ── */}
         {apptLoading ? (
           <View style={styles.apptCardWrap}>
             <ActivityIndicator color={TEAL} />
           </View>
-        ) : nextAppt ? (
+        ) : activeAppts.length > 0 ? (
           <View style={styles.apptCardWrap}>
-            <View style={styles.apptCard}>
-              <View style={styles.apptCardInner}>
-                {/* Text info */}
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.apptCardTitle} numberOfLines={2}>
-                    Upcoming {nextAppt.serviceId?.name ?? (isVideo ? 'Remote Visit' : 'Visit')}
-                    {'\n'}with {(nextAppt.doctorId as any)?.name ?? 'your provider'}
-                  </Text>
-                  <Text style={styles.apptCardDate}>{formatApptDate(nextAppt.scheduledAt)}</Text>
-                </View>
-                {/* Doctor avatar */}
-                <View style={styles.apptAvatarWrap}>
-                  <Avatar name={(nextAppt.doctorId as any)?.name} size={56} />
-                  {isVideo && (
-                    <View style={styles.apptVideoBadge}>
-                      <Ionicons name="videocam" size={10} color={colors.white} />
-                    </View>
-                  )}
-                </View>
-              </View>
-              {/* Action buttons */}
-              <View style={styles.apptBtns}>
-                <TouchableOpacity
-                  style={styles.apptBtnPrimary}
-                  onPress={() => router.push(`/(patient)/appointments/${nextAppt._id}`)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.apptBtnPrimaryText}>View Details</Text>
-                </TouchableOpacity>
+            <View style={styles.apptSectionHeader}>
+              <Text style={styles.apptSectionTitle}>Active Visits</Text>
+              <View style={styles.apptCountBadge}>
+                <Text style={styles.apptCountText}>{activeAppts.length}</Text>
               </View>
             </View>
+            {activeAppts.map((appt) => (
+              <ActiveVisitCard key={appt._id} appt={appt} />
+            ))}
           </View>
         ) : null}
 
@@ -285,7 +383,7 @@ export default function HomeScreen() {
         )}
 
         {/* No upcoming appt nudge */}
-        {!apptLoading && !nextAppt && (
+        {!apptLoading && activeAppts.length === 0 && (
           <View style={styles.section}>
             <TouchableOpacity
               style={styles.bookNudge}
@@ -357,10 +455,36 @@ const styles = StyleSheet.create({
     gap: spacing.xl,
   },
 
-  // Appointment card
+  // Appointment section
   apptCardWrap: {
     paddingHorizontal: spacing.base,
     paddingTop: spacing.base,
+    gap: spacing.sm,
+  },
+  apptSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  apptSectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  apptCountBadge: {
+    backgroundColor: TEAL,
+    borderRadius: radius.full,
+    minWidth: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  apptCountText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: '700',
   },
   apptCard: {
     backgroundColor: colors.white,
@@ -371,44 +495,93 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.07,
     shadowRadius: 8,
     elevation: 3,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  apptCardLive: {
+    borderColor: TEAL,
+    borderWidth: 1.5,
   },
   apptCardInner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.md,
-    marginBottom: spacing.md,
   },
   apptCardTitle: {
     fontSize: 15,
     fontWeight: '700',
     color: colors.textPrimary,
     lineHeight: 22,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   apptCardDate: {
     fontSize: 13,
     color: colors.textSecondary,
+    marginBottom: 6,
+  },
+  apptModeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    backgroundColor: TEAL_LIGHT,
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  apptModeBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: TEAL,
+  },
+  liveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 6,
+  },
+  liveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#16a34a',
+  },
+  liveText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#16a34a',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   apptAvatarWrap: {
     position: 'relative',
     flexShrink: 0,
   },
-  apptVideoBadge: {
+  apptLiveDotBadge: {
     position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: TEAL,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
+    bottom: 1,
+    right: 1,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#16a34a',
+    borderWidth: 2,
     borderColor: colors.white,
   },
-  apptBtns: {
+  joinBtn: {
     flexDirection: 'row',
-    gap: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    backgroundColor: TEAL,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  joinBtnText: {
+    color: colors.white,
+    fontWeight: '600',
+    fontSize: 14,
   },
   apptBtnPrimary: {
     flex: 1,

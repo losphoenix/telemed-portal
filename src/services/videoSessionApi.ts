@@ -14,7 +14,16 @@ const videoSessionApi = api.injectEndpoints({
     getVideoSessionByAppointment: build.query<VideoSession, string>({
       query: (appointmentId) => `/video-session/appointment/${appointmentId}`,
     }),
+    joinVideoSession: build.mutation<VideoSession, string>({
+      query: (sessionId) => ({
+        url: `/video-session/${sessionId}/join`,
+        method: 'PATCH',
+      }),
+    }),
   }),
 });
 
-export const { useGetVideoSessionByAppointmentQuery } = videoSessionApi;
+export const {
+  useGetVideoSessionByAppointmentQuery,
+  useJoinVideoSessionMutation,
+} = videoSessionApi;

@@ -27,7 +27,7 @@ export interface Conversation {
 export interface CreateConversationDto {
   orgId?: string;
   subject: string;
-  type: 'medical' | 'admin' | 'support';
+  type: 'patient_doctor' | 'ai_intake';
   initialMessage: string;
 }
 

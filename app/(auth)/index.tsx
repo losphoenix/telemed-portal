@@ -9,7 +9,7 @@ import {
   NativeScrollEvent,
   TouchableOpacity,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, radius } from '@/theme';
@@ -75,6 +75,7 @@ export default function IntroScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      <Stack.Screen options={{ title: 'iMedical', headerShown: false }} />
       {/* Carousel */}
       <ScrollView
         ref={scrollRef}

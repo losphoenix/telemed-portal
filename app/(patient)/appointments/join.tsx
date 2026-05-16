@@ -14,7 +14,7 @@ import Constants from 'expo-constants';
 import { Button, Card } from '@/components';
 import { colors, spacing, typography, radius } from '@/theme';
 import { useGetAppointmentQuery } from '@/services/appointmentApi';
-import { useGetVideoSessionByAppointmentQuery } from '@/services/videoSessionApi';
+import { useGetVideoSessionByAppointmentQuery, useJoinVideoSessionMutation } from '@/services/videoSessionApi';
 import {
   LiveKitRoom,
   VideoTrack,
@@ -42,10 +42,11 @@ export default function JoinScreen() {
   );
 
   const [inCall, setInCall] = useState(false);
+  const [joinSession] = useJoinVideoSessionMutation();
 
   const isLoading = apptLoading || sessionLoading;
 
-  const handleJoin = () => {
+  const handleJoin = async () => {
     if (isExpoGo) {
       Alert.alert('Development build required', 'Video calls are not supported in Expo Go. Run yarn ios or use an EAS development build.');
       return;
@@ -53,6 +54,12 @@ export default function JoinScreen() {
     if (!session) {
       Alert.alert('Not ready', 'No video session has been set up for this appointment yet.');
       return;
+    }
+    // Mark session as in_progress so the other party's client unlocks immediately
+    try {
+      await joinSession(session._id).unwrap();
+    } catch {
+      // Non-fatal — proceed to join even if the status update fails
     }
     setInCall(true);
   };
@@ -160,8 +167,11 @@ function CallView({ onLeave }: { onLeave: () => void }) {
   const [micEnabled, setMicEnabled] = useState(true);
   const [cameraEnabled, setCameraEnabled] = useState(true);
 
-  // Fetch all camera track references (local + remote)
-  const cameraTracks = useTracks([Track.Source.Camera]);
+  // Fetch all camera track references (local + remote).
+  // onlySubscribed: false avoids the circular dependency where adaptive streaming
+  // won't subscribe a track until a VideoTrack component renders it, but useTracks
+  // won't return the track until it's subscribed. Especially needed on iOS simulator.
+  const cameraTracks = useTracks([Track.Source.Camera], { onlySubscribed: false });
 
   const remoteTrack = cameraTracks.find(
     (t) => isTrackReference(t) && !t.participant.isLocal,

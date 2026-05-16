@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,11 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { ScreenContainer, Avatar } from '@/components';
 import { colors, spacing, typography, radius } from '@/theme';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
@@ -46,7 +48,13 @@ export default function ProfileScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const { patient } = useAppSelector((s) => s.auth);
-  const { data: me } = useGetPatientQuery(patient?._id ?? '', { skip: !patient?._id });
+  const { data: me, isFetching, refetch } = useGetPatientQuery(patient?._id ?? '', { skip: !patient?._id });
+
+  useFocusEffect(
+    useCallback(() => {
+      if (patient?._id) refetch();
+    }, [patient?._id, refetch]),
+  );
 
   const displayName = me
     ? (me.firstName && me.lastName ? `${me.firstName} ${me.lastName}` : me.name)
@@ -71,6 +79,14 @@ export default function ProfileScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={isFetching}
+            onRefresh={refetch}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
         {/* Header */}
         <View style={styles.header}>

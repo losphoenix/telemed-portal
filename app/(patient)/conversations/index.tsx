@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { Avatar } from '@/components';
 import { colors, spacing, radius } from '@/theme';
 import { useAppSelector } from '@/store/hooks';
@@ -116,9 +117,15 @@ export default function ConversationsScreen() {
   const { patient } = useAppSelector((s) => s.auth);
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  const { data, isLoading, refetch } = useGetConversationsQuery(
+  const { data, isLoading, isFetching, refetch } = useGetConversationsQuery(
     { orgId: '', limit: 30 },
     { skip: !patient?._id },
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (patient?._id) refetch();
+    }, [patient?._id, refetch]),
   );
 
   const composeOptions: ComposeOption[] = [
@@ -221,7 +228,7 @@ export default function ConversationsScreen() {
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           onRefresh={refetch}
-          refreshing={isLoading}
+          refreshing={isFetching}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           ListEmptyComponent={
             <View style={styles.empty}>

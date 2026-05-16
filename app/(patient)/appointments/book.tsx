@@ -25,7 +25,7 @@ import {
 } from '@/services/appointmentApi';
 
 type Step = 'service' | 'slots' | 'confirmed';
-type DeliveryFilter = 'all' | 'in_person' | 'telehealth';
+type DeliveryFilter = 'all' | 'in_person' | 'video';
 
 interface BookingState {
   serviceId?: string;
@@ -130,7 +130,7 @@ function DoctorSlotRow({
   selectedDoctorId?: string;
   onSelectSlot: (ds: DoctorSlots, slot: TimeSlot) => void;
 }) {
-  const isVideo = ds.deliveryMode === 'telehealth';
+  const isVideo = ds.deliveryMode === 'video';
   return (
     <View style={styles.doctorRow}>
       <View style={styles.avatarWrap}>
@@ -186,6 +186,7 @@ export function BookingConfirmationView({
   canCancel,
   isCancelling,
   joinButton,
+  intakeFormRow,
 }: {
   serviceName: string;
   duration: number;
@@ -198,8 +199,9 @@ export function BookingConfirmationView({
   canCancel?: boolean;
   isCancelling?: boolean;
   joinButton?: React.ReactNode;
+  intakeFormRow?: React.ReactNode;
 }) {
-  const isVideo = deliveryMode === 'telehealth';
+  const isVideo = deliveryMode === 'video';
   return (
     <>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.confirmContent}>
@@ -301,6 +303,14 @@ export function BookingConfirmationView({
             </View>
           ) : null}
         </View>
+
+        {/* Intake Form row — injected from detail screen */}
+        {intakeFormRow && (
+          <>
+            <SectionDivider />
+            {intakeFormRow}
+          </>
+        )}
 
         {/* Cancel — small text link at the bottom of the scroll */}
         {canCancel && onCancel && (
@@ -460,8 +470,8 @@ export default function BookScreen() {
               />
               <FilterChip
                 label="Remote" icon="videocam-outline"
-                active={deliveryFilter === 'telehealth'}
-                onPress={() => setDeliveryFilter((c) => c === 'telehealth' ? 'all' : 'telehealth')}
+                active={deliveryFilter === 'video'}
+                onPress={() => setDeliveryFilter((c) => c === 'video' ? 'all' : 'telehealth')}
               />
               <FilterChip label="Locations" active={false} onPress={() => {}} />
               <FilterChip label="Dates" active={false} onPress={() => {}} />
@@ -533,7 +543,7 @@ export default function BookScreen() {
           duration={booking.duration ?? 30}
           scheduledAt={booking.slot.start}
           doctorName={booking.doctorName ?? ''}
-          deliveryMode={booking.deliveryMode ?? 'telehealth'}
+          deliveryMode={booking.deliveryMode ?? 'video'}
           onDone={() => router.replace('/(patient)/appointments/index')}
         />
       )}

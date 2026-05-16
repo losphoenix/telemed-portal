@@ -23,7 +23,7 @@ export interface Service {
   name: string;
   description?: string;
   defaultDuration: number;
-  deliveryMode: 'in_person' | 'telehealth' | 'both';
+  deliveryMode: 'in_person' | 'video' | 'both';
   category?: string;
 }
 

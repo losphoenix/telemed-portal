@@ -4,7 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  FlatList,
+  SectionList,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -15,37 +15,37 @@ import { Card, StatusBadge, Avatar, Button } from '@/components';
 import { colors, spacing, typography, radius } from '@/theme';
 import { useAppSelector } from '@/store/hooks';
 import { useGetAppointmentsByPatientQuery, Appointment } from '@/services/appointmentApi';
+import { useGetVideoSessionByAppointmentQuery } from '@/services/videoSessionApi';
 
 const TEAL = '#1a7a6e';
+const JOIN_WINDOW_MS = 10 * 60 * 1000; // 10 minutes before scheduledAt
 
-export default function AppointmentsScreen() {
+const UPCOMING_STATUSES = new Set(['pending', 'confirmed', 'in_progress']);
+
+function canJoinNow(scheduledAt: string) {
+  return Date.now() >= new Date(scheduledAt).getTime() - JOIN_WINDOW_MS;
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function AppointmentCard({ item }: { item: Appointment }) {
   const router = useRouter();
-  const { patient, token } = useAppSelector((s) => s.auth);
+  const isVideo = item.deliveryMode === 'video';
+  const isActive = item.status === 'confirmed' || item.status === 'in_progress';
 
-  // Decode patientId from JWT as fallback when Redux patient hasn't loaded yet
-  const patientId =
-    patient?._id ??
-    (() => {
-      try {
-        return JSON.parse(atob(token!.split('.')[1])).id as string;
-      } catch {
-        return null;
-      }
-    })();
+  const { data: videoSession } = useGetVideoSessionByAppointmentQuery(item._id, {
+    skip: !isVideo || !isActive || !canJoinNow(item.scheduledAt),
+  });
 
-  const { data, isLoading, isFetching, refetch } = useGetAppointmentsByPatientQuery(
-    { patientId: patientId ?? '', limit: 30 },
-    { skip: !patientId },
-  );
+  const showJoin = isVideo && isActive && canJoinNow(item.scheduledAt) &&
+    !!videoSession && videoSession.status !== 'completed';
 
-  // Refetch every time the tab comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      if (patientId) refetch();
-    }, [patientId, refetch]),
-  );
-
-  const renderItem = ({ item }: { item: Appointment }) => (
+  return (
     <TouchableOpacity
       onPress={() => router.push(`/(patient)/appointments/${item._id}`)}
       activeOpacity={0.85}
@@ -57,34 +57,78 @@ export default function AppointmentsScreen() {
             <Text style={typography.h4}>{item.doctorId?.name}</Text>
             <Text style={typography.bodySmall}>{item.serviceId?.name}</Text>
             <Text style={[typography.caption, { color: colors.primary, marginTop: 2 }]}>
-              {new Date(item.scheduledAt).toLocaleDateString('en-US', {
-                weekday: 'short',
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
+              {formatDate(item.scheduledAt)}
             </Text>
           </View>
           <StatusBadge status={item.status} />
         </View>
 
-        {item.deliveryMode === 'telehealth' && item.status === 'CONFIRMED' && (
+        {showJoin && (
           <TouchableOpacity
             style={styles.joinBtn}
-            onPress={() =>
-              router.push({
-                pathname: '/(patient)/appointments/join',
-                params: { id: item._id },
-              })
-            }
+            onPress={() => router.push({
+              pathname: '/(patient)/appointments/join',
+              params: { id: item._id },
+            })}
           >
             <Ionicons name="videocam" size={15} color={colors.white} />
-            <Text style={styles.joinText}>Join telehealth visit</Text>
+            <Text style={styles.joinText}>Join video visit</Text>
           </TouchableOpacity>
         )}
       </Card>
     </TouchableOpacity>
+  );
+}
+
+
+export default function AppointmentsScreen() {
+  const router = useRouter();
+  const { patient, token } = useAppSelector((s) => s.auth);
+
+  const patientId =
+    patient?._id ??
+    (() => {
+      try {
+        return JSON.parse(atob(token!.split('.')[1])).id as string;
+      } catch {
+        return null;
+      }
+    })();
+
+  const { data, isLoading, isFetching, refetch } = useGetAppointmentsByPatientQuery(
+    { patientId: patientId ?? '', limit: 100 },
+    { skip: !patientId },
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (patientId) refetch();
+    }, [patientId, refetch]),
+  );
+
+  const all = data?.data ?? [];
+
+  const upcoming = all
+    .filter((a) => UPCOMING_STATUSES.has(a.status))
+    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+
+  const past = all
+    .filter((a) => !UPCOMING_STATUSES.has(a.status))
+    .sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
+
+  const sections = [
+    { title: 'Upcoming', data: upcoming },
+    { title: 'Past', data: past },
+  ].filter((s) => s.data.length > 0);
+
+  const renderItem = ({ item }: { item: Appointment }) => (
+    <AppointmentCard item={item} />
+  );
+
+  const renderSectionHeader = ({ section }: { section: { title: string } }) => (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{section.title}</Text>
+    </View>
   );
 
   return (
@@ -103,28 +147,29 @@ export default function AppointmentsScreen() {
 
       {isLoading ? (
         <ActivityIndicator style={styles.loader} color={colors.primary} />
+      ) : all.length === 0 ? (
+        <View style={styles.empty}>
+          <Ionicons name="calendar-outline" size={48} color={colors.gray300} />
+          <Text style={[typography.body, { color: colors.textSecondary, marginTop: spacing.md }]}>
+            No visits yet
+          </Text>
+          <Button
+            label="Book your first visit"
+            style={styles.emptyBtn}
+            onPress={() => router.push('/(patient)/appointments/book')}
+          />
+        </View>
       ) : (
-        <FlatList
-          data={data?.data ?? []}
+        <SectionList
+          sections={sections}
           keyExtractor={(item) => item._id}
           renderItem={renderItem}
+          renderSectionHeader={renderSectionHeader}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           onRefresh={refetch}
           refreshing={isFetching}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <Ionicons name="calendar-outline" size={48} color={colors.gray300} />
-              <Text style={[typography.body, { color: colors.textSecondary, marginTop: spacing.md }]}>
-                No visits yet
-              </Text>
-              <Button
-                label="Book your first visit"
-                style={styles.emptyBtn}
-                onPress={() => router.push('/(patient)/appointments/book')}
-              />
-            </View>
-          }
+          stickySectionHeadersEnabled={false}
         />
       )}
     </SafeAreaView>
@@ -156,14 +201,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
   },
-  bookBtnText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: TEAL,
-  },
+  bookBtnText: { fontSize: 14, fontWeight: '600', color: TEAL },
   loader: { marginTop: spacing['3xl'] },
-  list: { padding: spacing.base, gap: spacing.md },
-  card: { gap: spacing.sm },
+  list: { padding: spacing.base, gap: spacing.sm },
+  sectionHeader: {
+    paddingVertical: spacing.sm,
+    paddingTop: spacing.md,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  card: { gap: spacing.sm, marginBottom: spacing.md },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   info: { flex: 1, gap: 2 },
   joinBtn: {

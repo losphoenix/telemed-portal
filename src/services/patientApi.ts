@@ -54,7 +54,7 @@ const patientApi = api.injectEndpoints({
     }),
 
     uploadDocument: build.mutation<
-      { insurance?: Insurance; driverLicense?: DriverLicense },
+      { patient: PatientFull; ocrFields: Record<string, string | number | null> },
       { id: string; docType: DocType; uri: string; mimeType: string; fileName: string }
     >({
       async queryFn({ id, docType, uri, mimeType, fileName }, _api, _extra, baseQuery) {
@@ -70,6 +70,18 @@ const patientApi = api.injectEndpoints({
         if (result.error) return { error: result.error };
         return { data: result.data as any };
       },
+      invalidatesTags: ['Patient'],
+    }),
+
+    updateInsurance: build.mutation<
+      void,
+      { id: string; insurance: Partial<Insurance> }
+    >({
+      query: ({ id, insurance }) => ({
+        url: `/patient/${id}`,
+        method: 'PATCH',
+        body: { insurance },
+      }),
       invalidatesTags: ['Patient'],
     }),
 
@@ -113,6 +125,7 @@ const patientApi = api.injectEndpoints({
 export const {
   useGetPatientQuery,
   useUploadDocumentMutation,
+  useUpdateInsuranceMutation,
   useUpdateDriverLicenseMutation,
   useUpdateProfileMutation,
   useAcceptPolicyMutation,
