@@ -29,6 +29,7 @@ export interface DoctorSlots {
   price: number;
   duration: number;
   deliveryMode: string;
+  orgTimezone: string;
   slots: TimeSlot[];
 }
 

@@ -51,7 +51,8 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             <View style={styles.bookingCardText}>
               <Text style={styles.bookingCardTitle}>Appointment booked</Text>
               <Text style={styles.bookingCardDate}>
-                {new Date(message.bookingInfo.scheduledAt).toLocaleDateString('en-US', {
+                {new Date(message.bookingInfo.scheduledAt).toLocaleString('en-US', {
+                  timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
                   weekday: 'short',
                   month: 'short',
                   day: 'numeric',
