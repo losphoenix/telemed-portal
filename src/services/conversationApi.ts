@@ -14,31 +14,29 @@ export interface Conversation {
   _id: string;
   orgId: string;
   patientId: string;
-  doctorId?: { _id: string; name: string };
-  appointmentId?: string;
+  doctorId?: { _id: string; name: string; specialty?: string };
+  appointmentId?: {
+    _id: string;
+    scheduledAt: string;
+    deliveryMode: string;
+    serviceId?: { name: string };
+  };
   type?: string;
   status: string;
-  subject?: string;
   unreadCount?: number;
   lastMessage?: string;
   updatedAt: string;
 }
 
-export interface CreateConversationDto {
-  orgId?: string;
-  subject: string;
-  type: 'patient_doctor' | 'ai_intake';
-  initialMessage: string;
-}
-
 const conversationApi = api.injectEndpoints({
   endpoints: (build) => ({
+    // Patient inbox — returns all conversations for the patient
     getConversations: build.query<
       { data: Conversation[]; total: number },
-      { orgId: string; limit?: number; offset?: number }
+      { patientId: string; limit?: number; offset?: number }
     >({
-      query: ({ orgId, limit = 20, offset = 0 }) =>
-        `/conversation?orgId=${orgId}&limit=${limit}&offset=${offset}`,
+      query: ({ patientId, limit = 30, offset = 0 }) =>
+        `/conversation/patient/${patientId}?limit=${limit}&offset=${offset}`,
       providesTags: ['Conversation'],
     }),
 
@@ -55,12 +53,12 @@ const conversationApi = api.injectEndpoints({
 
     sendMessage: build.mutation<
       Message,
-      { conversationId: string; content: string }
+      { conversationId: string; content: string; senderId: string; senderType: string }
     >({
-      query: ({ conversationId, content }) => ({
+      query: ({ conversationId, content, senderId, senderType }) => ({
         url: `/conversation/${conversationId}/message`,
         method: 'POST',
-        body: { content },
+        body: { content, senderId, senderType },
       }),
       invalidatesTags: (_result, _err, { conversationId }) => [
         { type: 'Message', id: conversationId },
@@ -79,15 +77,6 @@ const conversationApi = api.injectEndpoints({
     getUnreadCount: build.query<{ unread: number }, string>({
       query: (conversationId) => `/conversation/${conversationId}/unread`,
     }),
-
-    createConversation: build.mutation<Conversation, CreateConversationDto>({
-      query: (body) => ({
-        url: '/conversation',
-        method: 'POST',
-        body,
-      }),
-      invalidatesTags: ['Conversation'],
-    }),
   }),
 });
 
@@ -97,5 +86,4 @@ export const {
   useSendMessageMutation,
   useMarkReadMutation,
   useGetUnreadCountQuery,
-  useCreateConversationMutation,
 } = conversationApi;

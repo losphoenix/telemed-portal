@@ -10,6 +10,7 @@ export interface AuthState {
     name: string;
     email: string;
     onboardingComplete?: boolean;
+    orgs?: string[];
   } | null;
   isLoading: boolean;
 }

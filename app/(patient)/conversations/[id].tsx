@@ -86,7 +86,12 @@ export default function ConversationScreen() {
     if (!text || isSending) return;
     setInput('');
     try {
-      await sendMessage({ conversationId: id ?? '', content: text }).unwrap();
+      await sendMessage({
+        conversationId: id ?? '',
+        content: text,
+        senderId: patient?._id ?? '',
+        senderType: 'patient',
+      }).unwrap();
     } catch {
       setInput(text);
     }

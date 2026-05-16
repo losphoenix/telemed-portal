@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,6 @@ import {
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
-  Modal,
-  Animated,
-  Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,104 +18,12 @@ import { useGetConversationsQuery, Conversation } from '@/services/conversationA
 
 const TEAL = '#1a7a6e';
 
-// ─── Compose options ──────────────────────────────────────────────────────────
-
-interface ComposeOption {
-  icon: string;
-  iconBg: string;
-  label: string;
-  sublabel: string;
-  onPress: () => void;
-}
-
-// ─── Compose bottom sheet ─────────────────────────────────────────────────────
-
-function ComposeSheet({
-  visible,
-  options,
-  onClose,
-}: {
-  visible: boolean;
-  options: ComposeOption[];
-  onClose: () => void;
-}) {
-  const slideAnim = useRef(new Animated.Value(300)).current;
-
-  React.useEffect(() => {
-    if (visible) {
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-        damping: 20,
-        stiffness: 180,
-      }).start();
-    } else {
-      Animated.timing(slideAnim, {
-        toValue: 300,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [visible]);
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      onRequestClose={onClose}
-    >
-      {/* Backdrop */}
-      <Pressable style={styles.backdrop} onPress={onClose} />
-
-      {/* Sheet */}
-      <Animated.View
-        style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}
-      >
-        {/* Handle */}
-        <View style={styles.sheetHandle} />
-
-        <Text style={styles.sheetTitle}>New Message</Text>
-
-        {options.map((opt, idx) => (
-          <TouchableOpacity
-            key={idx}
-            style={[
-              styles.composeOption,
-              idx < options.length - 1 && styles.composeOptionBorder,
-            ]}
-            onPress={() => { onClose(); opt.onPress(); }}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.composeIconWrap, { backgroundColor: opt.iconBg }]}>
-              <Ionicons name={opt.icon as any} size={20} color={TEAL} />
-            </View>
-            <View style={styles.composeText}>
-              <Text style={styles.composeLabel}>{opt.label}</Text>
-              <Text style={styles.composeSublabel}>{opt.sublabel}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={colors.gray400} />
-          </TouchableOpacity>
-        ))}
-
-        {/* Cancel */}
-        <TouchableOpacity style={styles.cancelBtn} onPress={onClose} activeOpacity={0.7}>
-          <Text style={styles.cancelText}>Cancel</Text>
-        </TouchableOpacity>
-      </Animated.View>
-    </Modal>
-  );
-}
-
-// ─── Main screen ──────────────────────────────────────────────────────────────
-
 export default function ConversationsScreen() {
   const router = useRouter();
   const { patient } = useAppSelector((s) => s.auth);
-  const [sheetOpen, setSheetOpen] = useState(false);
 
   const { data, isLoading, isFetching, refetch } = useGetConversationsQuery(
-    { orgId: '', limit: 30 },
+    { patientId: patient?._id ?? '', limit: 30 },
     { skip: !patient?._id },
   );
 
@@ -128,67 +33,43 @@ export default function ConversationsScreen() {
     }, [patient?._id, refetch]),
   );
 
-  const composeOptions: ComposeOption[] = [
-    {
-      icon: 'sparkles-outline',
-      iconBg: '#f0eeff',
-      label: 'AI Chat',
-      sublabel: 'Chat with our AI care assistant',
-      onPress: () => router.push('/(patient)/concierge'),
-    },
-    {
-      icon: 'medkit-outline',
-      iconBg: '#e8f4f2',
-      label: 'Medical Question',
-      sublabel: 'Send a message to your care team',
-      onPress: () => router.push('/(patient)/conversations/new?type=medical'),
-    },
-    {
-      icon: 'people-outline',
-      iconBg: '#fff8e6',
-      label: 'Admin Team',
-      sublabel: 'Billing, insurance, or account questions',
-      onPress: () => router.push('/(patient)/conversations/new?type=admin'),
-    },
-    {
-      icon: 'build-outline',
-      iconBg: '#f0f4ff',
-      label: 'Technical Support',
-      sublabel: 'App issues or technical help',
-      onPress: () => router.push('/(patient)/conversations/new?type=support'),
-    },
-  ];
+  // Only show appointment-linked doctor conversations
+  const conversations = (data?.data ?? []).filter((c) => c.type !== 'ai_intake');
 
   const renderItem = ({ item }: { item: Conversation }) => {
-    const isAi = item.type === 'ai_intake';
-    const displayName = isAi ? 'AI Care Assistant' : (item.doctorId?.name ?? 'Support');
+    const doctorName = item.doctorId?.name ?? 'Doctor';
+    const serviceName = (item.appointmentId as any)?.serviceId?.name;
+    const scheduledAt = (item.appointmentId as any)?.scheduledAt;
+    const subtitle = serviceName
+      ? serviceName
+      : scheduledAt
+      ? new Date(scheduledAt).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        })
+      : null;
 
     return (
       <TouchableOpacity
         onPress={() => router.push(`/(patient)/conversations/${item._id}`)}
         activeOpacity={0.8}
-        style={styles.conversationRow}
+        style={styles.row}
       >
-        <View style={[styles.avatarWrap, isAi && styles.avatarAi]}>
-          {isAi ? (
-            <Ionicons name="sparkles" size={20} color="#7C3AED" />
-          ) : (
-            <Avatar name={displayName} size={44} />
-          )}
-        </View>
+        <Avatar name={doctorName} size={44} />
 
         <View style={styles.info}>
           <View style={styles.infoTop}>
-            <Text style={styles.convName} numberOfLines={1}>{displayName}</Text>
+            <Text style={styles.convName} numberOfLines={1}>{doctorName}</Text>
             <Text style={styles.convDate}>
               {new Date(item.updatedAt).toLocaleDateString('en-US', {
                 month: 'short', day: 'numeric',
               })}
             </Text>
           </View>
-          {item.subject && (
-            <Text style={styles.convSubject} numberOfLines={1}>{item.subject}</Text>
-          )}
+          {subtitle ? (
+            <Text style={styles.convSubtitle} numberOfLines={1}>{subtitle}</Text>
+          ) : null}
         </View>
 
         {item.unreadCount && item.unreadCount > 0 ? (
@@ -204,25 +85,15 @@ export default function ConversationsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Messages</Text>
-        <TouchableOpacity
-          onPress={() => setSheetOpen(true)}
-          style={styles.composeBtn}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="create-outline" size={24} color="#ffffff" />
-        </TouchableOpacity>
       </View>
 
-      {/* List */}
       {isLoading ? (
         <ActivityIndicator style={styles.loader} color={TEAL} />
       ) : (
         <FlatList
-          data={data?.data ?? []}
+          data={conversations}
           keyExtractor={(item) => item._id}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
@@ -235,32 +106,20 @@ export default function ConversationsScreen() {
               <Ionicons name="chatbubbles-outline" size={44} color={colors.gray300} />
               <Text style={styles.emptyText}>No messages yet</Text>
               <Text style={styles.emptySubtext}>
-                Tap the compose icon to start a conversation
+                Messages with your doctor will appear here after booking an appointment.
               </Text>
             </View>
           }
         />
       )}
-
-      {/* Compose bottom sheet */}
-      <ComposeSheet
-        visible={sheetOpen}
-        options={composeOptions}
-        onClose={() => setSheetOpen(false)}
-      />
     </SafeAreaView>
   );
 }
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     backgroundColor: TEAL,
@@ -271,35 +130,18 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     letterSpacing: 0.2,
   },
-  composeBtn: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 19,
-  },
 
   loader: { marginTop: spacing['3xl'] },
 
   list: { paddingVertical: spacing.sm, paddingBottom: spacing['2xl'] },
 
-  conversationRow: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     backgroundColor: colors.white,
-  },
-  avatarWrap: { flexShrink: 0 },
-  avatarAi: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F5F3FF',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   info: { flex: 1 },
   infoTop: {
@@ -319,7 +161,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginLeft: spacing.sm,
   },
-  convSubject: {
+  convSubtitle: {
     fontSize: 13,
     color: colors.textSecondary,
   },
@@ -359,80 +201,5 @@ const styles = StyleSheet.create({
     color: colors.textDisabled,
     textAlign: 'center',
     paddingHorizontal: spacing.xl,
-  },
-
-  // Bottom sheet
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  sheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.white,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: 34, // safe area bottom
-    paddingTop: spacing.sm,
-  },
-  sheetHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.gray300,
-    alignSelf: 'center',
-    marginBottom: spacing.md,
-  },
-  sheetTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    paddingHorizontal: spacing.base,
-    marginBottom: spacing.sm,
-  },
-  composeOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
-  },
-  composeOptionBorder: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  composeIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  composeText: { flex: 1 },
-  composeLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    marginBottom: 2,
-  },
-  composeSublabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  cancelBtn: {
-    marginTop: spacing.sm,
-    marginHorizontal: spacing.base,
-    paddingVertical: spacing.md,
-    borderRadius: radius.lg,
-    backgroundColor: colors.gray100,
-    alignItems: 'center',
-  },
-  cancelText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.textSecondary,
   },
 });

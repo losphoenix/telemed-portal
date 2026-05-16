@@ -358,6 +358,8 @@ export default function BookScreen() {
       catch { return null; }
     })();
 
+  const orgId = patient?.orgs?.[0];
+
   const [step, setStep] = useState<Step>('service');
   const [booking, setBooking] = useState<BookingState>({});
   const [viewDate, setViewDate] = useState(new Date());
@@ -366,7 +368,7 @@ export default function BookScreen() {
   const { data: services, isLoading: servicesLoading } = useGetServicesQuery();
 
   const { data: allDoctorSlots, isLoading: slotsLoading } = useGetAvailableSlotsQuery(
-    { serviceId: booking.serviceId ?? '', date: toDateStr(viewDate) },
+    { serviceId: booking.serviceId ?? '', date: toDateStr(viewDate), orgId },
     { skip: !booking.serviceId || step !== 'slots' },
   );
 
@@ -398,7 +400,11 @@ export default function BookScreen() {
   };
 
   const handleBook = async () => {
-    if (!booking.doctorId || !booking.serviceId || !booking.slot || !patientId || !booking.orgId) return;
+    if (!booking.doctorId || !booking.serviceId || !booking.slot || !patientId) return;
+    if (!booking.orgId) {
+      Alert.alert('Error', 'Could not determine your clinic. Please sign out and sign back in.');
+      return;
+    }
     try {
       await bookAppointment({
         serviceId: booking.serviceId,
@@ -471,7 +477,7 @@ export default function BookScreen() {
               <FilterChip
                 label="Remote" icon="videocam-outline"
                 active={deliveryFilter === 'video'}
-                onPress={() => setDeliveryFilter((c) => c === 'video' ? 'all' : 'telehealth')}
+                onPress={() => setDeliveryFilter((c) => c === 'video' ? 'all' : 'video')}
               />
               <FilterChip label="Locations" active={false} onPress={() => {}} />
               <FilterChip label="Dates" active={false} onPress={() => {}} />

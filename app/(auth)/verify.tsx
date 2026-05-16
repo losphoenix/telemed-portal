@@ -71,6 +71,7 @@ export default function VerifyScreen() {
             name: payload.name,
             email: payload.email,
             onboardingComplete,
+            orgs: me?.orgs ?? [],
           },
         }),
       );

@@ -85,7 +85,6 @@ export default function PatientLayout() {
       <Tabs.Screen name="appointments/book" options={{ href: null }} />
       <Tabs.Screen name="appointments/join" options={{ href: null }} />
       <Tabs.Screen name="conversations/[id]" options={{ href: null }} />
-      <Tabs.Screen name="conversations/new" options={{ href: null }} />
       <Tabs.Screen name="follow-up/[id]" options={{ href: null }} />
       <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="documents" options={{ href: null }} />
