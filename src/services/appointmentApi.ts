@@ -65,7 +65,10 @@ const appointmentApi = api.injectEndpoints({
     >({
       query: ({ serviceId, date, orgId }) => ({
         url: `/appointment/slots/service/${serviceId}`,
-        params: { date, ...(orgId && { orgId }) },
+        params: {
+          date,
+          ...(orgId && { orgId }),
+        },
       }),
     }),
 

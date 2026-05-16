@@ -17,6 +17,7 @@ import { Avatar } from '@/components';
 import { colors, spacing, radius } from '@/theme';
 import { useAppSelector } from '@/store/hooks';
 import { useGetServicesQuery } from '@/services/orgApi';
+import { useGetPatientQuery } from '@/services/patientApi';
 import {
   useGetAvailableSlotsQuery,
   useBookAppointmentMutation,
@@ -123,12 +124,13 @@ function SectionDivider() {
 // ─── Doctor slot row ──────────────────────────────────────────────────────────
 
 function DoctorSlotRow({
-  ds, selectedSlotStart, selectedDoctorId, onSelectSlot,
+  ds, selectedSlotStart, selectedDoctorId, onSelectSlot, isPatientPcp,
 }: {
   ds: DoctorSlots;
   selectedSlotStart?: string;
   selectedDoctorId?: string;
   onSelectSlot: (ds: DoctorSlots, slot: TimeSlot) => void;
+  isPatientPcp?: boolean;
 }) {
   const isVideo = ds.deliveryMode === 'video';
   return (
@@ -142,7 +144,15 @@ function DoctorSlotRow({
         )}
       </View>
       <View style={styles.doctorInfo}>
-        <Text style={styles.doctorName}>{ds.doctorName}</Text>
+        <View style={styles.doctorNameRow}>
+          <Text style={styles.doctorName}>{ds.doctorName}</Text>
+          {isPatientPcp && (
+            <View style={styles.pcpBadge}>
+              <Ionicons name="star" size={10} color={TEAL} />
+              <Text style={styles.pcpBadgeText}>Your PCP</Text>
+            </View>
+          )}
+        </View>
         <Text style={styles.doctorSubtitle}>
           {isVideo ? 'Remote Visit over Zoom' : 'In-Office Visit'}
         </Text>
@@ -365,6 +375,11 @@ export default function BookScreen() {
   const [viewDate, setViewDate] = useState(new Date());
   const [deliveryFilter, setDeliveryFilter] = useState<DeliveryFilter>('all');
 
+  const { data: me } = useGetPatientQuery(patientId ?? '', { skip: !patientId });
+  const pcpDoctorId = me?.pcp && !me.pcp.isExternal
+    ? (typeof me.pcp.doctorId === 'object' ? (me.pcp.doctorId as any)._id : me.pcp.doctorId as string)
+    : undefined;
+
   const { data: services, isLoading: servicesLoading } = useGetServicesQuery();
 
   const { data: allDoctorSlots, isLoading: slotsLoading } = useGetAvailableSlotsQuery(
@@ -517,6 +532,7 @@ export default function BookScreen() {
                     selectedDoctorId={booking.doctorId}
                     selectedSlotStart={booking.slot?.start}
                     onSelectSlot={handleSelectSlot}
+                    isPatientPcp={!!pcpDoctorId && ds.doctorId === pcpDoctorId}
                   />
                   {idx < doctorSlots.length - 1 && <View style={styles.divider} />}
                 </View>
@@ -622,7 +638,14 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: colors.white,
   },
   doctorInfo: { flex: 1 },
-  doctorName: { fontSize: 15, fontWeight: '700', color: colors.textPrimary, marginBottom: 2 },
+  doctorNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2, flexWrap: 'wrap' },
+  doctorName: { fontSize: 15, fontWeight: '700', color: colors.textPrimary },
+  pcpBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: '#e8f4f2', borderRadius: 10,
+    paddingHorizontal: 7, paddingVertical: 2,
+  },
+  pcpBadgeText: { fontSize: 10, fontWeight: '700', color: TEAL },
   doctorSubtitle: { fontSize: 13, color: colors.textSecondary, marginBottom: 6 },
   slotsAvailable: { fontSize: 12, color: colors.textSecondary, marginBottom: spacing.sm },
   slotRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },

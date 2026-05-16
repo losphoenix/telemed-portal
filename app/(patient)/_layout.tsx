@@ -90,6 +90,7 @@ export default function PatientLayout() {
       <Tabs.Screen name="documents" options={{ href: null }} />
       <Tabs.Screen name="intake-form/index" options={{ href: null }} />
       <Tabs.Screen name="intake-form/[id]" options={{ href: null }} />
+      <Tabs.Screen name="pcp" options={{ href: null }} />
     </Tabs>
   );
 }

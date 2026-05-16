@@ -29,6 +29,23 @@ export interface PatientProfileUpdate {
   address: string;
 }
 
+export interface PatientPcp {
+  doctorId?: string | { _id: string; name: string; specialty?: string; profileImage?: string };
+  name?: string;
+  phone?: string;
+  practice?: string;
+  isExternal: boolean;
+  assignedAt?: string;
+}
+
+export interface UpdatePcpDto {
+  isExternal: boolean;
+  doctorId?: string;
+  name?: string;
+  phone?: string;
+  practice?: string;
+}
+
 export interface PatientFull {
   _id: string;
   email: string;
@@ -42,6 +59,7 @@ export interface PatientFull {
   policyAcceptance?: { acceptedAt?: string; ip?: string };
   insurance?: Insurance;
   driverLicense?: DriverLicense;
+  pcp?: PatientPcp;
 }
 
 const patientApi = api.injectEndpoints({
@@ -119,6 +137,23 @@ const patientApi = api.injectEndpoints({
       }),
       invalidatesTags: ['Patient'],
     }),
+
+    updatePcp: build.mutation<PatientFull, { id: string } & UpdatePcpDto>({
+      query: ({ id, ...body }) => ({
+        url: `/patient/${id}/pcp`,
+        method: 'PATCH',
+        body,
+      }),
+      invalidatesTags: ['Patient'],
+    }),
+
+    clearPcp: build.mutation<PatientFull, { id: string }>({
+      query: ({ id }) => ({
+        url: `/patient/${id}/pcp`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Patient'],
+    }),
   }),
 });
 
@@ -129,4 +164,6 @@ export const {
   useUpdateDriverLicenseMutation,
   useUpdateProfileMutation,
   useAcceptPolicyMutation,
+  useUpdatePcpMutation,
+  useClearPcpMutation,
 } = patientApi;

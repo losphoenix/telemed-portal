@@ -221,10 +221,14 @@ export default function HomeScreen() {
       onPress: () => router.push('/(patient)/documents'),
     }] : []),
     {
-      title: 'PCP',
-      subtitle: 'View your primary care provider',
+      title: me?.pcp
+        ? (me.pcp.isExternal ? (me.pcp.name ?? 'Your PCP') : 'Your PCP')
+        : 'Set a PCP',
+      subtitle: me?.pcp
+        ? 'View your primary care provider'
+        : 'Choose a primary care provider',
       icon: 'medical-outline',
-      onPress: () => router.push('/(patient)/profile'),
+      onPress: () => router.push('/(patient)/pcp'),
     },
     {
       title: 'Intake Form History',

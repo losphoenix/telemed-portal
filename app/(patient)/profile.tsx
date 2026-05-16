@@ -95,6 +95,41 @@ export default function ProfileScreen() {
           <Text style={styles.email}>{me?.email ?? patient?.email}</Text>
         </View>
 
+        {/* My Health section */}
+        <Text style={styles.sectionLabel}>MY HEALTH</Text>
+        <View style={styles.card}>
+          <TouchableOpacity
+            style={[styles.listRow, styles.listRowBorder]}
+            onPress={() => router.push('/(patient)/pcp')}
+            activeOpacity={0.6}
+          >
+            <View style={[styles.listIcon, { backgroundColor: colors.primaryLight }]}>
+              <Ionicons name="medical-outline" size={18} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.listLabel}>Primary Care Provider</Text>
+              {me?.pcp ? (
+                <Text style={styles.listSub}>
+                  {me.pcp.isExternal
+                    ? (me.pcp.name ?? 'External provider')
+                    : typeof me.pcp.doctorId === 'object'
+                      ? (me.pcp.doctorId as any).name
+                      : 'In-network provider'}
+                </Text>
+              ) : (
+                <Text style={[styles.listSub, { color: '#e67e22' }]}>Not set — tap to choose</Text>
+              )}
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.gray300} />
+          </TouchableOpacity>
+          <ListRow
+            icon="document-text-outline"
+            label="Intake Form History"
+            onPress={() => router.push('/(patient)/intake-form')}
+            isLast
+          />
+        </View>
+
         {/* Personal section */}
         <Text style={styles.sectionLabel}>ACCOUNT</Text>
         <View style={styles.card}>
@@ -197,6 +232,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     color: colors.textPrimary,
+  },
+  listSub: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 1,
   },
   version: {
     textAlign: 'center',
