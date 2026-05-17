@@ -17,6 +17,46 @@ export interface Insurance {
   cardBackUrl?: string;
 }
 
+export interface MedicationEntry {
+  name: string;
+  dose?: string;
+  frequency?: string;
+  route?: string;
+}
+
+export interface AllergyEntry {
+  substance: string;
+  reaction?: string;
+  severity?: 'mild' | 'moderate' | 'severe';
+}
+
+export interface HealthProfile {
+  chronicConditions?: string[];
+  otherConditions?: string;
+  previousSurgeries?: string;
+  familyHistoryConditions?: string[];
+  currentMedications?: MedicationEntry[];
+  noKnownMedications?: boolean;
+  medicationAllergies?: AllergyEntry[];
+  noKnownAllergies?: boolean;
+  otherAllergies?: string;
+  heightFt?: number;
+  heightIn?: number;
+  usualWeightLbs?: number;
+  smokingStatus?: 'never' | 'former' | 'current';
+  smokingPacksPerDay?: number;
+  alcoholUse?: 'none' | 'light' | 'moderate' | 'heavy';
+  recreationalDrugUse?: boolean;
+  recreationalDrugDetails?: string;
+  onBirthControl?: boolean;
+  birthControlType?: string;
+  historyOfMentalHealthDiagnosis?: boolean;
+  mentalHealthDiagnosisDetails?: string;
+  lastReviewedAt?: string;
+  lastUpdatedAt?: string;
+  source?: 'patient' | 'staff' | 'migration';
+}
+
 export type DocType = 'insurance-front' | 'insurance-back' | 'license-front' | 'license-back';
 
 export interface PatientProfileUpdate {
@@ -60,6 +100,7 @@ export interface PatientFull {
   insurance?: Insurance;
   driverLicense?: DriverLicense;
   pcp?: PatientPcp;
+  healthProfile?: HealthProfile | null;
 }
 
 const patientApi = api.injectEndpoints({
@@ -68,6 +109,11 @@ const patientApi = api.injectEndpoints({
     // — always returns all DB fields regardless of JWT strategy state
     getPatient: build.query<PatientFull, string>({
       query: (id) => `/patient/${id}`,
+      providesTags: ['Patient'],
+    }),
+
+    getHealthProfile: build.query<HealthProfile | null, string>({
+      query: (id) => `/patient/${id}/health-profile`,
       providesTags: ['Patient'],
     }),
 
@@ -127,6 +173,18 @@ const patientApi = api.injectEndpoints({
       invalidatesTags: ['Patient'],
     }),
 
+    updateHealthProfile: build.mutation<
+      PatientFull,
+      { id: string; healthProfile: Partial<HealthProfile> }
+    >({
+      query: ({ id, healthProfile }) => ({
+        url: `/patient/${id}/health-profile`,
+        method: 'PATCH',
+        body: healthProfile,
+      }),
+      invalidatesTags: ['Patient'],
+    }),
+
     acceptPolicy: build.mutation<
       { policyAcceptance: { acceptedAt: string; ip: string } },
       { id: string }
@@ -159,10 +217,12 @@ const patientApi = api.injectEndpoints({
 
 export const {
   useGetPatientQuery,
+  useGetHealthProfileQuery,
   useUploadDocumentMutation,
   useUpdateInsuranceMutation,
   useUpdateDriverLicenseMutation,
   useUpdateProfileMutation,
+  useUpdateHealthProfileMutation,
   useAcceptPolicyMutation,
   useUpdatePcpMutation,
   useClearPcpMutation,

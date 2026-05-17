@@ -231,8 +231,10 @@ export default function HomeScreen() {
       onPress: () => router.push('/(patient)/pcp'),
     },
     {
-      title: 'Intake Form History',
-      subtitle: 'View your past intake forms',
+      title: 'Health Summary',
+      subtitle: me?.healthProfile?.lastReviewedAt
+        ? 'Review your profile and intake history'
+        : 'Review and complete your health profile',
       icon: 'document-text-outline',
       onPress: () => router.push('/(patient)/intake-form'),
     },

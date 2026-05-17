@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Switch, ActivityIndicator, Alert,
@@ -16,6 +16,8 @@ import {
   ConsentInfo,
   FrequencyScore,
 } from '@/services/intakeFormApi';
+import { HealthProfile, useGetPatientQuery } from '@/services/patientApi';
+import { useAppSelector } from '@/store/hooks';
 
 // ── Step definitions ──────────────────────────────────────────────────────────
 
@@ -198,12 +200,16 @@ const FAMILY_CONDITIONS = [
 export default function IntakeFormFillScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { patient } = useAppSelector((s) => s.auth);
 
   const { data: form, isLoading } = useGetIntakeFormByIdQuery(id ?? '', { skip: !id });
   const [updateForm] = useUpdateIntakeFormMutation();
   const [submitForm, { isLoading: isSubmitting }] = useSubmitIntakeFormMutation();
+  const patientId = patient?._id ?? '';
+  const { data: me } = useGetPatientQuery(patientId, { skip: !patientId });
 
   const h = form?.healthInfo;
+  const profile = me?.healthProfile ?? form?.healthProfileSnapshot ?? null;
 
   const [step, setStep] = useState<Step>('visit');
   const [isSaving, setIsSaving] = useState(false);
@@ -253,6 +259,61 @@ export default function IntakeFormFillScreen() {
   // ── Step 5: Consent ────────────────────────────────────────────────────────
   const [agreed, setAgreed] = useState(() => form?.consent?.hasReadAndAgreed ?? false);
 
+  useEffect(() => {
+    if (!form) return;
+
+    setChiefComplaint(h?.chiefComplaint ?? '');
+    setSymptomDuration(h?.symptomDuration ?? '');
+    setSymptomSeverity(h?.symptomSeverity ?? 0);
+    setCurrentSymptoms(h?.currentSymptoms ?? []);
+    setAdditionalSymptomDetail(h?.additionalSymptomDetail ?? '');
+
+    setCurrentMedications(
+      h?.currentMedications ??
+      profile?.currentMedications?.map((item) => [item.name, item.dose, item.frequency].filter(Boolean).join(' ')).join('\n') ??
+      '',
+    );
+    setNoKnownMedications(h?.noKnownMedications ?? profile?.noKnownMedications ?? false);
+    setMedicationAllergies(
+      h?.medicationAllergies ??
+      profile?.medicationAllergies?.map((item) => [item.substance, item.reaction].filter(Boolean).join(' — ')).join('\n') ??
+      '',
+    );
+    setNoKnownAllergies(h?.noKnownAllergies ?? profile?.noKnownAllergies ?? false);
+    setOtherAllergies(h?.otherAllergies ?? profile?.otherAllergies ?? '');
+    setChronicConditions(h?.chronicConditions ?? profile?.chronicConditions ?? []);
+    setOtherConditions(h?.otherConditions ?? profile?.otherConditions ?? '');
+    setPreviousSurgeries(h?.previousSurgeries ?? profile?.previousSurgeries ?? '');
+    setRecentHospitalization(h?.recentHospitalization ?? false);
+    setRecentHospitalizationDetails(h?.recentHospitalizationDetails ?? '');
+    setFamilyHistory(h?.familyHistoryConditions ?? profile?.familyHistoryConditions ?? []);
+
+    setSmokingStatus((h?.smokingStatus ?? profile?.smokingStatus ?? '') as any);
+    setSmokingPacksPerDay(String(h?.smokingPacksPerDay ?? profile?.smokingPacksPerDay ?? ''));
+    setAlcoholUse((h?.alcoholUse ?? profile?.alcoholUse ?? '') as any);
+    setRecreationalDrugUse(h?.recreationalDrugUse ?? profile?.recreationalDrugUse ?? false);
+    setRecreationalDrugDetails(h?.recreationalDrugDetails ?? profile?.recreationalDrugDetails ?? '');
+    setIsPossiblyPregnant(h?.isPossiblyPregnant ?? false);
+    setIsCurrentlyPregnant(h?.isCurrentlyPregnant ?? false);
+    setOnBirthControl(h?.onBirthControl ?? profile?.onBirthControl ?? false);
+    setBirthControlType(h?.birthControlType ?? profile?.birthControlType ?? '');
+
+    setPhq2LittleInterest(h?.phq2LittleInterest);
+    setPhq2FeelingDown(h?.phq2FeelingDown);
+    setGad2FeelingAnxious(h?.gad2FeelingAnxious);
+    setGad2UncontrollableWorry(h?.gad2UncontrollableWorry);
+    setHistoryOfMentalHealthDiagnosis(
+      h?.historyOfMentalHealthDiagnosis ?? profile?.historyOfMentalHealthDiagnosis ?? false,
+    );
+    setMentalHealthDiagnosisDetails(
+      h?.mentalHealthDiagnosisDetails ?? profile?.mentalHealthDiagnosisDetails ?? '',
+    );
+    setFeelingSafe(h?.feelingSafe);
+    setHistoryOfAbuse(h?.historyOfAbuse ?? false);
+    setAdditionalConcerns(h?.additionalConcerns ?? '');
+    setAgreed(form?.consent?.hasReadAndAgreed ?? false);
+  }, [form, h, profile]);
+
   const toggleItem = useCallback(
     (list: string[], setList: (v: string[]) => void, val: string) =>
       setList(list.includes(val) ? list.filter((x) => x !== val) : [...list, val]),
@@ -301,6 +362,39 @@ export default function IntakeFormFillScreen() {
     signatureDate: new Date().toISOString(),
   });
 
+  const buildHealthProfilePatch = (): Partial<HealthProfile> => ({
+    currentMedications: noKnownMedications
+      ? []
+      : currentMedications
+          .split(/\n|,/)
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .map((name) => ({ name })),
+    noKnownMedications,
+    medicationAllergies: noKnownAllergies
+      ? []
+      : medicationAllergies
+          .split(/\n|,/)
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .map((substance) => ({ substance })),
+    noKnownAllergies,
+    otherAllergies,
+    chronicConditions,
+    otherConditions,
+    previousSurgeries,
+    familyHistoryConditions: familyHistory,
+    smokingStatus: smokingStatus || undefined,
+    smokingPacksPerDay: smokingStatus === 'current' && smokingPacksPerDay ? parseFloat(smokingPacksPerDay) : undefined,
+    alcoholUse: alcoholUse || undefined,
+    recreationalDrugUse,
+    recreationalDrugDetails: recreationalDrugUse ? recreationalDrugDetails : undefined,
+    onBirthControl,
+    birthControlType: onBirthControl ? birthControlType : undefined,
+    historyOfMentalHealthDiagnosis,
+    mentalHealthDiagnosisDetails: historyOfMentalHealthDiagnosis ? mentalHealthDiagnosisDetails : undefined,
+  });
+
   const autoSave = async () => {
     if (!id) return;
     setIsSaving(true);
@@ -331,7 +425,13 @@ export default function IntakeFormFillScreen() {
       Alert.alert('Consent required', 'Please read and agree to the telehealth consent to submit.');
       return;
     }
-    const result = await submitForm({ id, healthInfo: buildHealthInfo(), consent: buildConsent() });
+    const result = await submitForm({
+      id,
+      healthInfo: buildHealthInfo(),
+      healthProfilePatch: buildHealthProfilePatch(),
+      confirmHealthProfileReview: true,
+      consent: buildConsent(),
+    });
     if ('data' in result) {
       Alert.alert('Submitted', 'Your health intake form has been submitted.', [
         { text: 'OK', onPress: () => router.back() },
@@ -446,6 +546,13 @@ export default function IntakeFormFillScreen() {
           {/* ── Step 2: Medical History ───────────────────────────────── */}
           {step === 'history' && (
             <>
+              {profile && (
+                <View style={styles.prefillBox}>
+                  <Text style={styles.prefillText}>
+                    We filled these answers from your saved health profile. Review and update anything that has changed.
+                  </Text>
+                </View>
+              )}
               <SectionLabel text='Current medications' />
               <ToggleRow
                 label='No known medications'
@@ -530,6 +637,13 @@ export default function IntakeFormFillScreen() {
           {/* ── Step 3: Lifestyle ─────────────────────────────────────── */}
           {step === 'lifestyle' && (
             <>
+              {profile && (
+                <View style={styles.prefillBox}>
+                  <Text style={styles.prefillText}>
+                    Lifestyle and history answers are prefilled from your profile when available.
+                  </Text>
+                </View>
+              )}
               <OptionGroup
                 label='Smoking / tobacco use'
                 options={[
@@ -834,6 +948,15 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border,
   },
   screeningNoteText: { fontSize: 13, color: colors.textSecondary, lineHeight: 20 },
+  prefillBox: {
+    backgroundColor: colors.primaryLight,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    marginBottom: spacing.sm,
+  },
+  prefillText: { fontSize: 13, color: colors.primary, lineHeight: 20 },
 
   freqBlock: { marginBottom: spacing.md },
   freqQuestion: { fontSize: 14, color: colors.textPrimary, marginBottom: spacing.xs, lineHeight: 20 },

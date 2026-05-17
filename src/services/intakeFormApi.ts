@@ -1,4 +1,5 @@
 import { api } from './api';
+import type { HealthProfile } from './patientApi';
 
 export type FrequencyScore = 0 | 1 | 2 | 3;
 
@@ -16,6 +17,9 @@ export interface HealthIntakeInfo {
   weightLbs?: number;
   bloodPressureSystolic?: number;
   bloodPressureDiastolic?: number;
+
+  medicationChangesSinceLastVisit?: string;
+  allergyChangesSinceLastVisit?: string;
 
   // Medications & allergies
   currentMedications?: string;
@@ -53,7 +57,6 @@ export interface HealthIntakeInfo {
   gad2UncontrollableWorry?: FrequencyScore;
   historyOfMentalHealthDiagnosis?: boolean;
   mentalHealthDiagnosisDetails?: string;
-
   // Safety
   feelingSafe?: boolean;
   historyOfAbuse?: boolean;
@@ -79,6 +82,9 @@ export interface IntakeForm {
   status: 'draft' | 'completed';
   healthInfo?: HealthIntakeInfo;
   consent: ConsentInfo;
+  healthProfileSnapshot?: HealthProfile | null;
+  healthProfileReviewedAt?: string;
+  healthProfileReviewConfirmed?: boolean;
   notes?: string;
   completedAt?: string;
   expiresAt?: string;
@@ -96,6 +102,8 @@ export interface CreateIntakeFormDto {
 
 export interface UpdateIntakeFormDto {
   healthInfo?: Partial<HealthIntakeInfo>;
+  healthProfilePatch?: Partial<HealthProfile>;
+  confirmHealthProfileReview?: boolean;
   consent?: Partial<ConsentInfo>;
   notes?: string;
 }

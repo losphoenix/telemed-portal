@@ -17,6 +17,7 @@ import {
   useCreateIntakeFormMutation,
   IntakeForm,
 } from '@/services/intakeFormApi';
+import { useGetPatientQuery } from '@/services/patientApi';
 
 function StatusBadge({ status, expiresAt }: { status: string; expiresAt?: string }) {
   const isExpired = expiresAt && new Date(expiresAt) < new Date();
@@ -68,6 +69,7 @@ export default function IntakeFormListScreen() {
   const { data: forms, isLoading } = useGetMyIntakeFormsQuery(undefined, {
     skip: !patient?._id,
   });
+  const { data: me } = useGetPatientQuery(patient?._id ?? '', { skip: !patient?._id });
   const [createForm, { isLoading: isCreating }] = useCreateIntakeFormMutation();
 
   const handleNew = async () => {
@@ -130,6 +132,28 @@ export default function IntakeFormListScreen() {
           data={forms}
           keyExtractor={(item) => item._id}
           contentContainerStyle={styles.list}
+          ListHeaderComponent={
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryTitle}>Health Profile</Text>
+              <Text style={styles.summaryText}>
+                Conditions: {me?.healthProfile?.chronicConditions?.length ? me.healthProfile.chronicConditions.join(', ') : 'None on file'}
+              </Text>
+              <Text style={styles.summaryText}>
+                Medications: {me?.healthProfile?.noKnownMedications ? 'None known' : (me?.healthProfile?.currentMedications?.length ?? 0)}
+              </Text>
+              <Text style={styles.summaryText}>
+                Allergies: {me?.healthProfile?.noKnownAllergies ? 'None known' : me?.healthProfile?.otherAllergies || `${me?.healthProfile?.medicationAllergies?.length ?? 0} listed`}
+              </Text>
+              <Text style={styles.summaryMeta}>
+                {me?.healthProfile?.lastReviewedAt
+                  ? `Last reviewed ${new Date(me.healthProfile.lastReviewedAt).toLocaleDateString('en-US')}`
+                  : 'No saved health profile yet'}
+              </Text>
+              <TouchableOpacity style={styles.summaryBtn} onPress={handleNew} disabled={isCreating}>
+                <Text style={styles.summaryBtnText}>Review & Update in Intake Form</Text>
+              </TouchableOpacity>
+            </View>
+          }
           renderItem={({ item }) => (
             <FormCard form={item} onPress={() => handleOpen(item._id)} />
           )}
@@ -220,6 +244,42 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.sm,
   },
+  summaryCard: {
+    backgroundColor: colors.white,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.md,
+  },
+  summaryTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: spacing.xs,
+  },
+  summaryText: {
+    fontSize: 13,
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  summaryMeta: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+  summaryBtn: {
+    marginTop: spacing.sm,
+    backgroundColor: colors.primaryLight,
+    borderRadius: radius.sm,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  summaryBtnText: {
+    color: colors.primary,
+    fontWeight: '600',
+    fontSize: 13,
+  },
   card: {
     backgroundColor: colors.white,
     borderRadius: radius.md,
@@ -263,7 +323,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   badge: {
-    borderRadius: radius.xs ?? 4,
+    borderRadius: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
