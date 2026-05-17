@@ -241,6 +241,13 @@ export default function DocumentsScreen() {
         if (ocr.groupNumber) setInsGroupNumber(String(ocr.groupNumber));
         const filled = !!(ocr.provider || ocr.memberId || ocr.groupNumber);
         setOcrNote((n) => ({ ...n, insurance: filled ? 'filled' : 'failed' }));
+
+        if (result.pcpExtracted) {
+          Alert.alert(
+            'PCP Found',
+            `Your primary care physician "${ocr.pcpName}" was detected on your insurance card and saved to your profile.`,
+          );
+        }
       }
       if (docType === 'license-front') {
         if (ocr.number) setLicenseNumber(String(ocr.number));
