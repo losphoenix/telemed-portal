@@ -9,13 +9,16 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { ScreenContainer, Avatar } from '@/components';
 import { colors, spacing, typography, radius } from '@/theme';
+
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { clearCredentials } from '@/store/authSlice';
 import { useGetPatientQuery } from '@/services/patientApi';
+
+const TEAL = '#1a7a6e';
 
 type ListRowProps = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -75,7 +78,16 @@ export default function ProfileScreen() {
   };
 
   return (
-    <ScreenContainer edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      {/* Teal top bar */}
+      <View style={styles.topBar}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+          <Ionicons name="chevron-back" size={24} color="#ffffff" />
+        </TouchableOpacity>
+        <Text style={styles.topBarTitle}>My Health</Text>
+        <View style={styles.backBtn} />
+      </View>
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -90,7 +102,6 @@ export default function ProfileScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Avatar name={displayName} size={72} />
           <Text style={typography.h3}>{displayName || '—'}</Text>
           <Text style={styles.email}>{me?.email ?? patient?.email}</Text>
         </View>
@@ -98,6 +109,11 @@ export default function ProfileScreen() {
         {/* My Health section */}
         <Text style={styles.sectionLabel}>MY HEALTH</Text>
         <View style={styles.card}>
+          <ListRow
+            icon="calendar-outline"
+            label="My Visits"
+            onPress={() => router.push('/(patient)/appointments')}
+          />
           <TouchableOpacity
             style={[styles.listRow, styles.listRowBorder]}
             onPress={() => router.push('/(patient)/pcp')}
@@ -175,12 +191,35 @@ export default function ProfileScreen() {
 
         <Text style={styles.version}>iMedical v1.0.0</Text>
       </ScrollView>
-    </ScreenContainer>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: TEAL,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
+  },
+  topBarTitle: {
+    flex: 1,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#ffffff',
+    textAlign: 'center',
+    letterSpacing: 0.2,
+  },
+  backBtn: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   scrollContent: {
+    padding: spacing.base,
     paddingBottom: spacing['4xl'],
   },
   header: {

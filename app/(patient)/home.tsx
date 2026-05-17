@@ -16,6 +16,7 @@ import { Avatar } from '@/components';
 import { colors, spacing, radius } from '@/theme';
 import { useAppSelector } from '@/store/hooks';
 import { useGetAppointmentsByPatientQuery } from '@/services/appointmentApi';
+import { useGetConversationsQuery } from '@/services/conversationApi';
 import { useGetOrganizationsQuery } from '@/services/orgApi';
 import { useGetPatientQuery } from '@/services/patientApi';
 import { useGetVideoSessionByAppointmentQuery } from '@/services/videoSessionApi';
@@ -175,13 +176,18 @@ export default function HomeScreen() {
 
   const { data: orgs = [], refetch: refetchOrgs } = useGetOrganizationsQuery();
   const { data: me, refetch: refetchMe } = useGetPatientQuery(patientId ?? '', { skip: !patientId });
+  const { data: convsData, refetch: refetchConvs } = useGetConversationsQuery(
+    { patientId: patientId ?? '', limit: 30 },
+    { skip: !patientId },
+  );
 
   const refetchAll = useCallback(() => {
     if (!patientId) return;
     refetchAppts();
     refetchOrgs();
     refetchMe();
-  }, [patientId, refetchAppts, refetchOrgs, refetchMe]);
+    refetchConvs();
+  }, [patientId, refetchAppts, refetchOrgs, refetchMe, refetchConvs]);
 
   useFocusEffect(
     useCallback(() => {
@@ -197,6 +203,16 @@ export default function HomeScreen() {
       if (b.status === 'in_progress' && a.status !== 'in_progress') return 1;
       return new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime();
     });
+
+  const recentConversations = (convsData?.data ?? [])
+    .filter((c) => c.type !== 'ai_intake')
+    .sort((a, b) => {
+      if ((b.unreadCount ?? 0) !== (a.unreadCount ?? 0)) {
+        return (b.unreadCount ?? 0) - (a.unreadCount ?? 0);
+      }
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    })
+    .slice(0, 3);
 
   const rawName = patient?.name ?? '';
   const firstName = rawName.includes('@')
@@ -245,17 +261,17 @@ export default function HomeScreen() {
 
       {/* ── Top bar ── */}
       <View style={styles.topBar}>
-        {/* Left: avatar + name */}
-        <View style={styles.profileSwitcher}>
-          <View style={styles.topAvatar}>
-            <Text style={styles.topAvatarText}>
-              {firstName.charAt(0).toUpperCase()}
-            </Text>
-          </View>
+        {/* Left: avatar + name → taps to My Health */}
+        <TouchableOpacity
+          style={styles.profileSwitcher}
+          onPress={() => router.push('/(patient)/profile')}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="person-circle-outline" size={20} color={colors.white} />
           <Text style={styles.topName}>{firstName}</Text>
-        </View>
+        </TouchableOpacity>
 
-        {/* Right: notification bell */}
+        {/* Right: notifications */}
         <TouchableOpacity
           onPress={() => router.push('/(patient)/notifications')}
           style={styles.topIconBtn}
@@ -279,24 +295,54 @@ export default function HomeScreen() {
         }
       >
 
-        {/* ── Active Visits ── */}
-        {apptLoading ? (
-          <View style={styles.apptCardWrap}>
-            <ActivityIndicator color={TEAL} />
-          </View>
-        ) : activeAppts.length > 0 ? (
-          <View style={styles.apptCardWrap}>
-            <View style={styles.apptSectionHeader}>
-              <Text style={styles.apptSectionTitle}>Active Visits</Text>
+        {/* ── Visits ── */}
+        <View style={styles.section}>
+          <View style={styles.apptSectionHeader}>
+            <Text style={styles.sectionTitle}>Visits</Text>
+            {activeAppts.length > 0 && (
               <View style={styles.apptCountBadge}>
                 <Text style={styles.apptCountText}>{activeAppts.length}</Text>
               </View>
-            </View>
-            {activeAppts.map((appt) => (
-              <ActiveVisitCard key={appt._id} appt={appt} />
-            ))}
+            )}
+            <TouchableOpacity
+              onPress={() => router.push('/(patient)/appointments')}
+              style={styles.seeAllBtn}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.seeAllText}>See all</Text>
+              <Ionicons name="chevron-forward" size={13} color={TEAL} />
+            </TouchableOpacity>
           </View>
-        ) : null}
+
+          {apptLoading ? (
+            <ActivityIndicator color={TEAL} style={{ marginVertical: spacing.md }} />
+          ) : activeAppts.length > 0 ? (
+            activeAppts.map((appt) => (
+              <ActiveVisitCard key={appt._id} appt={appt} />
+            ))
+          ) : (
+            <View style={styles.visitGrid}>
+              <VisitCard
+                icon="videocam-outline"
+                label="Video Visit"
+                iconBg={TEAL_LIGHT}
+                onPress={() => router.push('/(patient)/appointments/book')}
+              />
+              <VisitCard
+                icon="business-outline"
+                label="In-Person Visit"
+                iconBg="#fef3e2"
+                onPress={() => router.push('/(patient)/appointments/book')}
+              />
+              <VisitCard
+                icon="clipboard-outline"
+                label={`Annual\nCheckup`}
+                iconBg="#f0f4ff"
+                onPress={() => router.push('/(patient)/appointments/book')}
+              />
+            </View>
+          )}
+        </View>
 
         {/* ── Your Actions ── */}
         <View style={styles.section}>
@@ -318,35 +364,55 @@ export default function HomeScreen() {
           </ScrollView>
         </View>
 
-        {/* ── Schedule a Visit ── */}
+        {/* ── Messages ── */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Schedule a Visit</Text>
-          <View style={styles.scheduleHint}>
-            <Ionicons name="notifications-outline" size={13} color={colors.textSecondary} />
-            <Text style={styles.scheduleHintText}>
-              Billed to you or your insurance.{' '}
-              <Text style={styles.scheduleLearnMore}>Learn more</Text>
-            </Text>
+          <View style={styles.apptSectionHeader}>
+            <Text style={styles.sectionTitle}>Messages</Text>
+            <TouchableOpacity
+              onPress={() => router.push('/(patient)/conversations')}
+              style={styles.seeAllBtn}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.seeAllText}>See all</Text>
+              <Ionicons name="chevron-forward" size={13} color={TEAL} />
+            </TouchableOpacity>
           </View>
-          <View style={styles.visitGrid}>
-            <VisitCard
-              icon="videocam-outline"
-              label="Video Visit"
-              iconBg={TEAL_LIGHT}
-              onPress={() => router.push('/(patient)/appointments/book')}
-            />
-            <VisitCard
-              icon="business-outline"
-              label="In-Person Visit"
-              iconBg="#fef3e2"
-              onPress={() => router.push('/(patient)/appointments/book')}
-            />
-            <VisitCard
-              icon="clipboard-outline"
-              label={`Annual\nCheckup`}
-              iconBg="#f0f4ff"
-              onPress={() => router.push('/(patient)/appointments/book')}
-            />
+          <View style={styles.msgCard}>
+            {recentConversations.length > 0 ? recentConversations.map((conv, idx) => {
+              const doctorName = (conv.doctorId as any)?.name ?? 'Doctor';
+              const serviceName = (conv.appointmentId as any)?.serviceId?.name;
+              const scheduledAt = (conv.appointmentId as any)?.scheduledAt;
+              const subtitle = serviceName ?? (scheduledAt
+                ? new Date(scheduledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                : null);
+              const isLast = idx === recentConversations.length - 1;
+              return (
+                <TouchableOpacity
+                  key={conv._id}
+                  style={[styles.msgRow, !isLast && styles.msgRowBorder]}
+                  onPress={() => router.push(`/(patient)/conversations/${conv._id}`)}
+                  activeOpacity={0.7}
+                >
+                  <Avatar name={doctorName} size={40} />
+                  <View style={styles.msgInfo}>
+                    <Text style={styles.msgName} numberOfLines={1}>{doctorName}</Text>
+                    {subtitle ? <Text style={styles.msgSub} numberOfLines={1}>{subtitle}</Text> : null}
+                  </View>
+                  {conv.unreadCount && conv.unreadCount > 0 ? (
+                    <View style={styles.msgBadge}>
+                      <Text style={styles.msgBadgeText}>{conv.unreadCount > 9 ? '9+' : conv.unreadCount}</Text>
+                    </View>
+                  ) : (
+                    <Ionicons name="chevron-forward" size={16} color={colors.gray300} />
+                  )}
+                </TouchableOpacity>
+              );
+            }) : (
+              <View style={styles.msgEmpty}>
+                <Ionicons name="chatbubbles-outline" size={28} color={colors.gray300} />
+                <Text style={styles.msgEmptyText}>No messages yet</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -388,20 +454,6 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* No upcoming appt nudge */}
-        {!apptLoading && activeAppts.length === 0 && (
-          <View style={styles.section}>
-            <TouchableOpacity
-              style={styles.bookNudge}
-              onPress={() => router.push('/(patient)/appointments/book')}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="calendar-outline" size={20} color={TEAL} />
-              <Text style={styles.bookNudgeText}>No upcoming visits — book one now</Text>
-              <Ionicons name="chevron-forward" size={18} color={TEAL} />
-            </TouchableOpacity>
-          </View>
-        )}
 
       </ScrollView>
     </SafeAreaView>
@@ -425,25 +477,16 @@ const styles = StyleSheet.create({
   profileSwitcher: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-  },
-  topAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  topAvatarText: {
-    color: colors.white,
-    fontWeight: '700',
-    fontSize: 15,
+    gap: spacing.xs,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
   },
   topName: {
     color: colors.white,
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '600',
   },
   topIconBtn: {
     width: 38,
@@ -457,26 +500,27 @@ const styles = StyleSheet.create({
   // Scroll
   scroll: { flex: 1 },
   scrollContent: {
+    paddingTop: spacing.lg,
     paddingBottom: spacing['3xl'],
     gap: spacing.xl,
   },
 
-  // Appointment section
-  apptCardWrap: {
-    paddingHorizontal: spacing.base,
-    paddingTop: spacing.base,
-    gap: spacing.sm,
-  },
   apptSectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     marginBottom: spacing.xs,
   },
-  apptSectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.textPrimary,
+  seeAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    marginLeft: 'auto',
+  },
+  seeAllText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: TEAL,
   },
   apptCountBadge: {
     backgroundColor: TEAL,
@@ -671,21 +715,6 @@ const styles = StyleSheet.create({
   },
 
   // Schedule visit
-  scheduleHint: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginTop: -spacing.xs,
-  },
-  scheduleHintText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  scheduleLearnMore: {
-    color: TEAL,
-    fontWeight: '500',
-    textDecorationLine: 'underline',
-  },
   visitGrid: {
     flexDirection: 'row',
     gap: spacing.md,
@@ -768,19 +797,59 @@ const styles = StyleSheet.create({
     color: TEAL,
   },
 
-  // No appt nudge
-  bookNudge: {
+  // Messages preview
+  msgCard: {
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  msgRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    backgroundColor: TEAL_LIGHT,
-    borderRadius: radius.lg,
-    padding: spacing.base,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
   },
-  bookNudgeText: {
-    flex: 1,
+  msgRowBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  msgInfo: { flex: 1 },
+  msgName: {
     fontSize: 14,
-    fontWeight: '500',
-    color: TEAL,
+    fontWeight: '600',
+    color: colors.textPrimary,
   },
+  msgSub: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  msgBadge: {
+    backgroundColor: TEAL,
+    borderRadius: radius.full,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+  },
+  msgBadgeText: {
+    color: colors.white,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  msgEmpty: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+    gap: spacing.xs,
+  },
+  msgEmptyText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textDisabled,
+  },
+
 });

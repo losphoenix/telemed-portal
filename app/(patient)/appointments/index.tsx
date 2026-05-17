@@ -11,7 +11,7 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Card, StatusBadge, Avatar, Button } from '@/components';
+import { Card, StatusBadge, Avatar } from '@/components';
 import { colors, spacing, typography, radius } from '@/theme';
 import { useAppSelector } from '@/store/hooks';
 import { useGetAppointmentsByPatientQuery, Appointment } from '@/services/appointmentApi';
@@ -134,14 +134,44 @@ export default function AppointmentsScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.topBar}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+          <Ionicons name="chevron-back" size={24} color="#ffffff" />
+        </TouchableOpacity>
         <Text style={styles.topBarTitle}>My Visits</Text>
+        <View style={styles.backBtn} />
+      </View>
+
+      {/* Booking type cards */}
+      <View style={styles.bookingGrid}>
         <TouchableOpacity
-          style={styles.bookBtn}
+          style={styles.bookTypeCard}
           onPress={() => router.push('/(patient)/appointments/book')}
-          activeOpacity={0.7}
+          activeOpacity={0.8}
         >
-          <Ionicons name="add" size={18} color={TEAL} />
-          <Text style={styles.bookBtnText}>Book</Text>
+          <View style={[styles.bookTypeIcon, { backgroundColor: '#e8f4f2' }]}>
+            <Ionicons name="videocam-outline" size={26} color={TEAL} />
+          </View>
+          <Text style={styles.bookTypeLabel}>Video Visit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.bookTypeCard}
+          onPress={() => router.push('/(patient)/appointments/book')}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.bookTypeIcon, { backgroundColor: '#fef3e2' }]}>
+            <Ionicons name="business-outline" size={26} color={TEAL} />
+          </View>
+          <Text style={styles.bookTypeLabel}>In-Person Visit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.bookTypeCard}
+          onPress={() => router.push('/(patient)/appointments/book')}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.bookTypeIcon, { backgroundColor: '#f0f4ff' }]}>
+            <Ionicons name="clipboard-outline" size={26} color={TEAL} />
+          </View>
+          <Text style={styles.bookTypeLabel}>{`Annual\nCheckup`}</Text>
         </TouchableOpacity>
       </View>
 
@@ -151,13 +181,8 @@ export default function AppointmentsScreen() {
         <View style={styles.empty}>
           <Ionicons name="calendar-outline" size={48} color={colors.gray300} />
           <Text style={[typography.body, { color: colors.textSecondary, marginTop: spacing.md }]}>
-            No visits yet
+            No visits yet — pick a visit type above to get started.
           </Text>
-          <Button
-            label="Book your first visit"
-            style={styles.emptyBtn}
-            onPress={() => router.push('/(patient)/appointments/book')}
-          />
         </View>
       ) : (
         <SectionList
@@ -186,22 +211,57 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
   },
+  backBtn: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   topBarTitle: {
+    flex: 1,
     fontSize: 20,
     fontWeight: '700',
     color: '#ffffff',
     letterSpacing: 0.2,
+    textAlign: 'center',
   },
-  bookBtn: {
+  bookingGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
+    gap: spacing.md,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.base,
+    backgroundColor: colors.background,
   },
-  bookBtnText: { fontSize: 14, fontWeight: '600', color: TEAL },
+  bookTypeCard: {
+    flex: 1,
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.base,
+    paddingHorizontal: spacing.sm,
+    alignItems: 'center',
+    gap: spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  bookTypeIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bookTypeLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    textAlign: 'center',
+    lineHeight: 16,
+  },
   loader: { marginTop: spacing['3xl'] },
   list: { padding: spacing.base, gap: spacing.sm },
   sectionHeader: {
@@ -226,6 +286,5 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   joinText: { color: colors.white, fontWeight: '600', fontSize: 14 },
-  empty: { alignItems: 'center', marginTop: spacing['4xl'] },
-  emptyBtn: { marginTop: spacing.lg, minWidth: 200 },
+  empty: { alignItems: 'center', marginTop: spacing['4xl'], paddingHorizontal: spacing.xl },
 });

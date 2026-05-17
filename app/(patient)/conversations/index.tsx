@@ -86,7 +86,11 @@ export default function ConversationsScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+          <Ionicons name="chevron-back" size={24} color="#ffffff" />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Messages</Text>
+        <View style={styles.backBtn} />
       </View>
 
       {isLoading ? (
@@ -120,15 +124,25 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
 
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     backgroundColor: TEAL,
   },
+  backBtn: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerTitle: {
+    flex: 1,
     fontSize: 20,
     fontWeight: '700',
     color: '#ffffff',
     letterSpacing: 0.2,
+    textAlign: 'center',
   },
 
   loader: { marginTop: spacing['3xl'] },
